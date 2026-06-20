@@ -615,7 +615,7 @@ const safeSetItem = (key: string, value: string) => {
                       const isOfflineUnavailable = !isOnline && !offlineDeckIds.has(deck.id);
 
                       return (
-                        <TiltCard key={deck.id || `deck-${idx}`} delayIdx={idx} className={cn("w-[85vw] sm:w-[380px] shrink-0 snap-start h-auto", isOfflineUnavailable && "opacity-40 grayscale pointer-events-none")}>
+                        <TiltCard key={`${deck.id || "deck"}-${idx}`} delayIdx={idx} className={cn("w-[85vw] sm:w-[380px] shrink-0 snap-start h-auto", isOfflineUnavailable && "opacity-40 grayscale pointer-events-none")}>
                           <div className="absolute top-4 right-4 z-20 flex gap-2">
                             {isOfflineUnavailable && (
                                <div className="px-3 py-1.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-black uppercase tracking-wider flex items-center border-2 border-red-500/20 backdrop-blur-md shadow-sm">
@@ -716,7 +716,7 @@ const safeSetItem = (key: string, value: string) => {
                 const isOfflineUnavailable = !isOnline && !offlineDeckIds.has(deck.id);
 
                 return (
-                  <TiltCard key={deck.id || `deck-${idx}`} delayIdx={idx} className={cn("", isOfflineUnavailable && "opacity-40 grayscale pointer-events-none")}>
+                  <TiltCard key={`${deck.id || "deck"}-${idx}`} delayIdx={idx} className={cn("", isOfflineUnavailable && "opacity-40 grayscale pointer-events-none")}>
                     {/* Animated gradient border pseudo-element effect already handled by .card-3d layer logic */}
                     <div className="absolute top-4 right-4 z-20 flex gap-2">
                             {isOfflineUnavailable && (

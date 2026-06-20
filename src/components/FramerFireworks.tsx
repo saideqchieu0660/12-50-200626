@@ -35,7 +35,7 @@ export const FramerFireworks = ({ active, onComplete }: { active: boolean; onCom
       <AnimatePresence>
         {particles.map((p) => (
           <motion.div
-            key={p.id || index}
+            key={`${p.id || "p"}-${index}`}
             initial={{ opacity: 1, scale: 0, x: 0, y: 0 }}
             animate={{ 
               opacity: [1, 1, 0], 

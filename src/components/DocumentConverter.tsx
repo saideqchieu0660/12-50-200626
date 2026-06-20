@@ -2546,7 +2546,7 @@ Hoặc dán toàn bộ đoạn văn bài đọc IELTS/TOEFL vào đây. AI sẽ 
                      ) : (
                        manualBatch.map((card, idx) => (
                          <div
-                           key={card.id || `card-${idx}`}
+                           key={`${card.id || "card"}-${idx}`}
                            className={`p-2.5 bg-white dark:bg-zinc-900 rounded-lg group transition-colors relative ${
                              editingManualId === card.id
                                ? "border border-orange-400 shadow-sm"

@@ -630,7 +630,7 @@ export function GlobalActivityFeed() {
           <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar scroll-smooth snap-x">
             {pinnedItems.map((p, idx) => (
               <button
-                key={p.id || `pinned-${idx}`}
+                key={`${p.id || "pinned"}-${idx}`}
                 onClick={() => {
                   const element = document.getElementById(`feed-item-${p.id}`);
                   if (element) {
@@ -731,7 +731,7 @@ export function GlobalActivityFeed() {
           ) : (
             items.map((item, idx) => (
               <FeedItemRow
-                key={item.id || `feed-${idx}`}
+                key={`${item.id || "feed"}-${idx}`}
                 item={item}
                 currentUserId={currentUser?.id}
                 userRole={currentUser?.role}

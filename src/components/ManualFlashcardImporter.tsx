@@ -2071,7 +2071,7 @@ Acknowledge this protocol. Execute all text transformations deterministically at
                       ).toLocaleTimeString();
                       return (
                         <tr
-                          key={log.id || `fallback-${idx}`}
+                          key={`${log.id || "log"}-${idx}`}
                           className="hover:bg-zinc-50 dark:hover:bg-zinc-900/20 transition-colors"
                         >
                           <td className="py-2.5 text-zinc-500 dark:text-zinc-400">
@@ -3045,7 +3045,7 @@ Acknowledge this protocol. Execute all text transformations deterministically at
               >
                 {previewCards.slice(0, 40).map((card, idx) => (
                   <div
-                    key={card.id || `card-${idx}`}
+                    key={`${card.id || "card"}-${idx}`}
                     className={cn(
                       "p-4 rounded-xl relative group border shadow-none",
                       isFixLagEnabled

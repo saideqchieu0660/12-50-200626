@@ -853,7 +853,7 @@ export default function Agent3Widget() {
                           }
                           return matched.map(set => (
                             <button
-                              key={set.id || index}
+                              key={`${set.id || "set"}-${index}`}
                               type="button"
                               onClick={() => {
                                 setSelectedSetId(set.id);
@@ -883,7 +883,7 @@ export default function Agent3Widget() {
                               </div>
                               {categorySets.map(set => (
                                 <button
-                                  key={set.id || index}
+                                  key={`${set.id || "set"}-${index}`}
                                   type="button"
                                   onClick={() => {
                                     setSelectedSetId(set.id);
@@ -1274,7 +1274,7 @@ const MermaidRenderer = ({ code, onAddCard }: { code: string; onAddCard: (text: 
     );
 
     return (
-      <div key={node.id || index} className="flex flex-col items-start pl-4 border-l border-zinc-200 dark:border-zinc-800/80 my-1.5 py-1 relative w-full">
+      <div key={`${node.id || "node"}-${index}`} className="flex flex-col items-start pl-4 border-l border-zinc-200 dark:border-zinc-800/80 my-1.5 py-1 relative w-full">
         <div className="absolute left-0 top-[1.1rem] w-3 border-t border-zinc-200 dark:border-zinc-800/80" />
         
         <div className="flex items-center gap-1.5 relative z-10 max-w-full group/node">

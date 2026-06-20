@@ -147,7 +147,7 @@ export const TopPerformersWidget: React.FC<TopPerformersWidgetProps> = ({ users,
           const trend = rankTrends[u.id] || "same";
           return (
             <LeaderboardRow
-              key={u.id || index}
+              key={`${u.id || "user"}-${index}`}
               user={u}
               index={index}
               currentUserId={currentUserId}

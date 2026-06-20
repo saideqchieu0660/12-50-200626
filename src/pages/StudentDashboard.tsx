@@ -2093,7 +2093,7 @@ export default function StudentDashboard() {
                           const isSelected = selectedExamDecks.includes(deck.id);
                           return (
                               <button 
-                                key={deck.id || `deck-${idx}`}
+                                key={`${deck.id || "deck"}-${idx}`}
                                 onClick={() => {
                                     if (isSelected) {
                                         setSelectedExamDecks(prev => prev.filter(id => id !== deck.id));
@@ -2893,7 +2893,7 @@ export default function StudentDashboard() {
 
                     return (
                       <motion.div 
-                        key={u.id || `user-${idx}`}
+                        key={`${u.id || "user"}-${idx}`}
                         layoutId={`rank-${u.id}`}
                         initial={{ opacity: 0, y: 50 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -2984,7 +2984,7 @@ export default function StudentDashboard() {
                           transition={{ type: "spring", stiffness: 300, damping: 25, delay: index * 0.05 }}
                           whileHover={{ scale: 1.02 }}
                           onClick={() => setSelectedUserProfile(u)}
-                          key={u.id || `user-${idx}`} className={cn(
+                          key={`${u.id || "user"}-${idx}`} className={cn(
                             "group flex items-center justify-between p-3 sm:p-4 rounded-xl border transition-all cursor-pointer backdrop-blur-md content-visibility-auto gpu-accelerated", 
                             u.id === user?.id 
                               ? "bg-orange-500/15 border-orange-500 shadow-lg ring-1 ring-orange-500/50" 
@@ -5745,7 +5745,7 @@ export default function StudentDashboard() {
                    const isMaxed = achillesSelectedDecks.length >= 3;
                    return (
                      <div 
-                       key={deck.id || `deck-${idx}`}
+                       key={`${deck.id || "deck"}-${idx}`}
                        onClick={() => {
                           if (isSelected) {
                             setAchillesSelectedDecks(prev => prev.filter(id => id !== deck.id));
@@ -5888,7 +5888,7 @@ export default function StudentDashboard() {
                     
                     return (
                       <div 
-                        key={card.id}
+                        key={`${card.id}-${idx}`}
                         className="group flex flex-col sm:flex-row gap-4 justify-between items-center bg-zinc-100/50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 hover:border-blue-500/30 dark:hover:border-blue-500/30 hover:bg-white dark:hover:bg-zinc-900 transition-all shadow-sm hover:shadow"
                       >
                         <div className="flex-1 w-full relative">

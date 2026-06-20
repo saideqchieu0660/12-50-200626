@@ -1041,7 +1041,7 @@ export default function TeacherDashboard() {
                   {dbUsers.filter(u => !u.isAnonymous && !(u.email || "").includes("anonymous@local") && u.name && u.name.trim() !== "").map(u => {
                     if (user && u.id === user.id) return null;
                     return (
-                      <option key={u.id || `user-${idx}`} value={u.id}>
+                      <option key={`${u.id || "user"}-${idx}`} value={u.id}>
                         {u.name} {u.email ? `(${u.email}) ` : ""}(LV: {u.level || 1} | {u.points || 0} PTS)
                       </option>
                     );
@@ -1188,7 +1188,7 @@ export default function TeacherDashboard() {
                   return hash % 2 === 0;
                 }).map(d => typeof d.title === 'string' ? d.title : JSON.stringify(d.title));
                 return (
-                  <div key={u.id || `user-${idx}`} className="p-3 bg-zinc-200/60 dark:bg-zinc-800/50 rounded-xl border border-orange-600/20 dark:border-orange-500/30 flex items-start gap-3">
+                  <div key={`${u.id || "user"}-${idx}`} className="p-3 bg-zinc-200/60 dark:bg-zinc-800/50 rounded-xl border border-orange-600/20 dark:border-orange-500/30 flex items-start gap-3">
                     <input
                       type="checkbox"
                       title="Chọn học sinh"
@@ -1597,7 +1597,7 @@ export default function TeacherDashboard() {
                         </div>
                         
                         {expandedCategories[subject] && subjectDecks.map(deck => (
-                          <div key={deck.id || `deck-${idx}`} className="flex flex-col sm:flex-row justify-between sm:items-center p-3 gap-3 bg-zinc-100 dark:bg-zinc-900/60 rounded-xl border border-zinc-200/60 dark:border-zinc-800/50 hover:bg-zinc-150/40 dark:hover:bg-zinc-850/30 transition-colors content-visibility-auto gpu-accelerated">
+                          <div key={`${deck.id || "deck"}-${idx}`} className="flex flex-col sm:flex-row justify-between sm:items-center p-3 gap-3 bg-zinc-100 dark:bg-zinc-900/60 rounded-xl border border-zinc-200/60 dark:border-zinc-800/50 hover:bg-zinc-150/40 dark:hover:bg-zinc-850/30 transition-colors content-visibility-auto gpu-accelerated">
                             <div className="flex items-start gap-3 flex-1 min-w-[150px]">
                               <input
                                 type="checkbox"
