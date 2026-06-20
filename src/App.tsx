@@ -1023,9 +1023,9 @@ function Layout({ children }: { children: React.ReactNode }) {
                 ({
                   signInAnonymously,
                   setPersistence,
-                  browserLocalPersistence,
+                  indexedDBLocalPersistence,
                 }) => {
-                  setPersistence(auth, browserLocalPersistence)
+                  setPersistence(auth, indexedDBLocalPersistence)
                     .then(() => {
                       signInAnonymously(auth).catch((e) => {
                         if (
@@ -1166,6 +1166,8 @@ function Layout({ children }: { children: React.ReactNode }) {
           );
           setUser((prev) => (prev ? { ...prev, role } : null));
         }
+      }, (err) => {
+         console.warn("User profile snapshot error:", err);
       });
     };
     setupListener();
@@ -1197,6 +1199,8 @@ function Layout({ children }: { children: React.ReactNode }) {
           } else {
             setCurrentUserRank(null);
           }
+        }, (err) => {
+           console.warn("Users col snapshot error:", err);
         });
       } catch (e) {
         console.error(

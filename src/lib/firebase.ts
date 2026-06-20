@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { initializeFirestore, memoryLocalCache, collection, addDoc, doc, setDoc, getDoc, updateDoc, query, where, getDocs, deleteDoc, arrayRemove } from "firebase/firestore";
-import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
 // Fetch from Vite environment variables (added via the UI Secrets panel)
@@ -18,7 +18,8 @@ const db = initializeFirestore(app, {
   localCache: memoryLocalCache(),
 });
 const auth = getAuth(app);
-setPersistence(auth, browserLocalPersistence).catch(console.error);
+// Setting persistence to indexedDB by default to avoid LocalStorage 5MB limits
+setPersistence(auth, indexedDBLocalPersistence).catch(console.error);
 const storage = getStorage(app);
 
 export { db, auth, storage };
@@ -71,7 +72,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  if (typeof window !== "undefined") {
+    const errorEvent = new PromiseRejectionEvent('unhandledrejection', {
+      promise: Promise.resolve(),
+      reason: new Error(JSON.stringify(errInfo))
+    });
+    // This allows GlobalErrorToast to pick it up properly without breaking execution flow
+    window.dispatchEvent(errorEvent);
+  }
 }
 
 // ==========================================

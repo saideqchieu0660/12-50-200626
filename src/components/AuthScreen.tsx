@@ -22,6 +22,39 @@ import { Role } from '../lib/store';
 export default function AuthScreen() {
   useEffect(() => {
     document.title = "Henosis Web";
+    // Proactively clean up heavy non-critical caches to prevent QuotaExceededError during Firebase Auth
+    try {
+        const keysToRemove = [
+            'henosis-importer-pipeline',
+            'henosis-failed-chunks',
+            'local_global_activity_feed',
+            'henosis_provider_config'
+        ];
+        
+        let totalLen = 0;
+        for (let i = 0; i < localStorage.length; i++) {
+           const k = localStorage.key(i);
+           if (k) {
+               totalLen += (localStorage.getItem(k)?.length || 0);
+               // If item is very large or is one of the known cache, clean it
+               if (keysToRemove.includes(k) || k.startsWith('study_scratchpad_')) {
+                   localStorage.removeItem(k);
+               }
+           }
+        }
+        
+        // If still large (> 4MB out of 5MB), clear more aggressive
+        if (totalLen > 4 * 1024 * 1024) {
+             for (let i = 0; i < localStorage.length; i++) {
+                 const k = localStorage.key(i);
+                 if (k && !k.startsWith('firebase:')) {
+                     localStorage.removeItem(k);
+                 }
+             }
+        }
+    } catch(err) {
+        console.warn("Error cleaning local storage", err);
+    }
   }, []);
 
   const [isLogin, setIsLogin] = useState(true);
