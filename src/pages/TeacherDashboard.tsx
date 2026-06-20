@@ -1041,7 +1041,7 @@ export default function TeacherDashboard() {
                   {dbUsers.filter(u => !u.isAnonymous && !(u.email || "").includes("anonymous@local") && u.name && u.name.trim() !== "").map(u => {
                     if (user && u.id === user.id) return null;
                     return (
-                      <option key={`${u.id || "user"}-${idx}`} value={u.id}>
+                      <option key={u.id || "user"} value={u.id}>
                         {u.name} {u.email ? `(${u.email}) ` : ""}(LV: {u.level || 1} | {u.points || 0} PTS)
                       </option>
                     );
@@ -1188,7 +1188,7 @@ export default function TeacherDashboard() {
                   return hash % 2 === 0;
                 }).map(d => typeof d.title === 'string' ? d.title : JSON.stringify(d.title));
                 return (
-                  <div key={`${u.id || "user"}-${idx}`} className="p-3 bg-zinc-200/60 dark:bg-zinc-800/50 rounded-xl border border-orange-600/20 dark:border-orange-500/30 flex items-start gap-3">
+                  <div key={u.id || "user"} className="p-3 bg-zinc-200/60 dark:bg-zinc-800/50 rounded-xl border border-orange-600/20 dark:border-orange-500/30 flex items-start gap-3">
                     <input
                       type="checkbox"
                       title="Chọn học sinh"
@@ -1203,7 +1203,10 @@ export default function TeacherDashboard() {
                       <div className="flex flex-col gap-2">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                            <span className="font-bold text-sm md:text-base break-words text-zinc-900 dark:text-zinc-100">{u.name}</span>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-bold text-sm md:text-base break-words text-zinc-900 dark:text-zinc-100">{u.name}</span>
+                              <span className="text-xs text-amber-400 block">{u.email || "No Email"} • {u.id}</span>
+                            </div>
                             <span className="text-[10px] sm:text-xs font-mono font-bold text-orange-600 dark:text-orange-400 shrink-0 bg-orange-500/10 px-1.5 py-0.5 rounded">(XP: {u.points || 0})</span>
                             <span className="text-[10px] sm:text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded shrink-0">Progress: {u.averageMastery || 0}%</span>
                             <button
@@ -1597,7 +1600,7 @@ export default function TeacherDashboard() {
                         </div>
                         
                         {expandedCategories[subject] && subjectDecks.map(deck => (
-                          <div key={`${deck.id || "deck"}-${idx}`} className="flex flex-col sm:flex-row justify-between sm:items-center p-3 gap-3 bg-zinc-100 dark:bg-zinc-900/60 rounded-xl border border-zinc-200/60 dark:border-zinc-800/50 hover:bg-zinc-150/40 dark:hover:bg-zinc-850/30 transition-colors content-visibility-auto gpu-accelerated">
+                          <div key={deck.id || "deck"} className="flex flex-col sm:flex-row justify-between sm:items-center p-3 gap-3 bg-zinc-100 dark:bg-zinc-900/60 rounded-xl border border-zinc-200/60 dark:border-zinc-800/50 hover:bg-zinc-150/40 dark:hover:bg-zinc-850/30 transition-colors content-visibility-auto gpu-accelerated">
                             <div className="flex items-start gap-3 flex-1 min-w-[150px]">
                               <input
                                 type="checkbox"

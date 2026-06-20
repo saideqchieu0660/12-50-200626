@@ -3574,7 +3574,7 @@ export default function StudyRoom() {
                   const originalIndex = deck?.cards.findIndex((c) => c.id === card.id) ?? idx;
                   return (
                     <div
-                      key={`${card.id || "card"}-${idx}`}
+                      key={card.id || "card"}
                       className="p-4 bg-zinc-100/60 dark:bg-zinc-800/40 rounded-xl border border-zinc-200/40 dark:border-zinc-700/20 hover:border-orange-500/30 transition flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
                     >
                       <div className="flex-1 space-y-2 min-w-0 w-full">

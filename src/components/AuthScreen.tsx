@@ -11,7 +11,8 @@ import {
   signInAnonymously,
   EmailAuthProvider,
   linkWithCredential,
-  linkWithPopup
+  linkWithPopup,
+  fetchSignInMethodsForEmail
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { Mail, Lock, Key, User, Loader2, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
@@ -52,7 +53,17 @@ export default function AuthScreen() {
     isExecutingAuth.current = true;
 
     try {
+      // 1. MULTI-PROVIDER SCANNING VIA fetchSignInMethodsForEmail
+      const methods = await fetchSignInMethodsForEmail(auth, email);
+      
       if (isLogin) {
+        if (methods.length > 0 && !methods.includes('password') && methods.includes('google.com')) {
+           setError(`Tài khoản ${email} đã được đăng ký bằng Google. Vui lòng chọn "Đăng nhập với Google".`);
+           setIsLoading(false);
+           isExecutingAuth.current = false;
+           return;
+        }
+
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         
         if (userCredential.user && userCredential.user.emailVerified) {
@@ -105,6 +116,13 @@ export default function AuthScreen() {
           navigate(isTeacher && !isExplicitlyStudentMode ? '/teacher' : '/dashboard');
         }
       } else {
+        if (methods.length > 0) {
+           setError(`Email ${email} đã tồn tại trong hệ thống với phương thức: ${methods.join(', ')}. Đi tới màn hình Đăng nhập để tiếp tục hoặc sử dụng Google.`);
+           setIsLoading(false);
+           isExecutingAuth.current = false;
+           return;
+        }
+
         let userCredential;
         const currentUser = auth.currentUser;
         
@@ -259,13 +277,44 @@ export default function AuthScreen() {
     } catch (err: any) {
       console.error(err);
       let errorMessage = "Đã xảy ra lỗi hệ thống";
-      if (err.code === 'auth/popup-closed-by-user') {
+
+      if (err.code === 'auth/account-exists-with-different-credential') {
+        const email = err.customData?.email;
+        const pendingCred = GoogleAuthProvider.credentialFromError(err);
+        if (email && pendingCred) {
+          try {
+            const methods = await fetchSignInMethodsForEmail(auth, email);
+            errorMessage = `Provider mismatch cho ${email}: [${methods.join(', ')}]. Đang yêu cầu hợp nhất...`;
+            setError(errorMessage);
+            
+            if (methods.includes('password')) {
+               const password = window.prompt(`Tài khoản ${email} đã tồn tại với Mật khẩu.\nVui lòng nhập mật khẩu tài khoản của bạn để liên kết đăng nhập Google:`);
+               if (password) {
+                  const signInResult = await signInWithEmailAndPassword(auth, email, password);
+                  await linkWithCredential(signInResult.user, pendingCred);
+                  // Refresh the page or continue auth to make sure dashboard loads
+                  window.location.href = "/dashboard";
+                  return;
+               } else {
+                  errorMessage = "Đã hủy tiến trình liên kết tài khoản.";
+               }
+            } else {
+               errorMessage = `Tài khoản ${email} đã tồn tại qua phương thức khác: ${methods.join(', ')}. Hãy đăng nhập bằng phương thức cũ, sau đó liên kết Google.`;
+            }
+          } catch (fetchErr: any) {
+             errorMessage = `Lỗi hệ thống khi kiểm tra liên kết: ${fetchErr.message}`;
+          }
+        } else {
+          errorMessage = "Tài khoản đã tồn tại dưới một nền tảng đăng nhập khác.";
+        }
+      } else if (err.code === 'auth/popup-closed-by-user') {
         errorMessage = "Đã hủy đăng nhập vì cửa sổ bị đóng!";
       } else if (err.code === 'auth/cancelled-popup-request') {
         errorMessage = "Đang có một yêu cầu đăng nhập khác đang xử lý!";
       } else if (err.message) {
         errorMessage = err.message;
       }
+      
       setError(errorMessage);
     } finally {
       setIsLoading(false);

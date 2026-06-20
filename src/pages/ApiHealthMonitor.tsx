@@ -1420,7 +1420,7 @@ export function ServiceMonitor({ adminKey, isOpen = true }: { adminKey: string, 
                   const isGroq = log.provider === "Groq";
                   return (
                      <div 
-                      key={`${log.id || "log"}-${idx}`} 
+                      key={log.id || "log"} 
                       className={`p-4 flex flex-col md:flex-row md:items-center gap-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors border-l-4 ${
                         is429 
                           ? 'border-l-orange-500 bg-orange-500/5' 

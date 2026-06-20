@@ -1836,6 +1836,9 @@ export default function StudentDashboard() {
         </div>
         <div className="relative z-10">
           <h2 className="font-serif italic font-medium text-3xl font-display text-transparent bg-clip-text bg-gradient-to-r from-orange-700 via-orange-500 to-orange-600 dark:from-orange-200 dark:via-orange-400 dark:to-orange-500 text-transparent bg-clip-text bg-gradient-to-r from-orange-700 via-orange-500 to-orange-600 dark:from-orange-200 dark:via-orange-400 dark:to-orange-500 mb-2">Salve, {user?.name}</h2>
+          <span className="text-sm text-gray-400 block mt-1 mb-2 tracking-wide">
+            {user?.email || auth.currentUser?.email || "No Email linked"}
+          </span>
           <p className="font-sans font-light tracking-wide font-roman text-lg italic opacity-80 mb-6 min-h-[3.5rem]">{quote}</p>
           <div className="flex flex-wrap items-center gap-4">
             <div className="bg-orange-500/20 text-orange-700 dark:text-orange-400 px-4 py-2 rounded-lg font-bold flex items-center gap-2 relative">
@@ -2093,7 +2096,7 @@ export default function StudentDashboard() {
                           const isSelected = selectedExamDecks.includes(deck.id);
                           return (
                               <button 
-                                key={`${deck.id || "deck"}-${idx}`}
+                                key={deck.id || "deck"}
                                 onClick={() => {
                                     if (isSelected) {
                                         setSelectedExamDecks(prev => prev.filter(id => id !== deck.id));
@@ -2183,7 +2186,7 @@ export default function StudentDashboard() {
               <div className="space-y-4">
                 {broadcasts.map((b) => (
                   <motion.div
-                    key={b.id || `b-${idx}`}
+                    key={b.id || "b"}
                     initial={{ opacity: 0, y: -15, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     className="relative overflow-hidden rounded-2xl p-5 md:p-6 bg-gradient-to-r from-red-600 via-rose-600 to-orange-600 dark:from-red-950/70 dark:via-rose-950/70 dark:to-orange-950/40 border border-red-500/40 shadow-xl shadow-red-500/5"
@@ -2893,7 +2896,7 @@ export default function StudentDashboard() {
 
                     return (
                       <motion.div 
-                        key={`${u.id || "user"}-${idx}`}
+                        key={u.id || "user"}
                         layoutId={`rank-${u.id}`}
                         initial={{ opacity: 0, y: 50 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -2984,7 +2987,7 @@ export default function StudentDashboard() {
                           transition={{ type: "spring", stiffness: 300, damping: 25, delay: index * 0.05 }}
                           whileHover={{ scale: 1.02 }}
                           onClick={() => setSelectedUserProfile(u)}
-                          key={`${u.id || "user"}-${idx}`} className={cn(
+                          key={u.id || "user"} className={cn(
                             "group flex items-center justify-between p-3 sm:p-4 rounded-xl border transition-all cursor-pointer backdrop-blur-md content-visibility-auto gpu-accelerated", 
                             u.id === user?.id 
                               ? "bg-orange-500/15 border-orange-500 shadow-lg ring-1 ring-orange-500/50" 
@@ -5745,7 +5748,7 @@ export default function StudentDashboard() {
                    const isMaxed = achillesSelectedDecks.length >= 3;
                    return (
                      <div 
-                       key={`${deck.id || "deck"}-${idx}`}
+                       key={deck.id || "deck"}
                        onClick={() => {
                           if (isSelected) {
                             setAchillesSelectedDecks(prev => prev.filter(id => id !== deck.id));

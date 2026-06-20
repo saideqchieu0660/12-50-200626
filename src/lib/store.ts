@@ -492,6 +492,13 @@ export const store = {
         }
         
         if (profile) {
+            // Check and update email for linked or existing accounts
+            if (!firebaseUser.isAnonymous && firebaseUser.email && profile.email !== firebaseUser.email) {
+                await dbService.updateUserProfile(firebaseUser.uid, {
+                    email: firebaseUser.email
+                });
+            }
+
             import('../utils/offlineDb').then(({ saveProfileMetaOffline }) => {
                 saveProfileMetaOffline(firebaseUser.uid, profile).catch(console.warn);
             });
@@ -557,6 +564,7 @@ export const store = {
               u.lastWeeklyResetWeek = currentWeek;
               await dbService.updateUserProfile(firebaseUser.uid, {
                  name: u.name,
+                 email: firebaseUser.email || "No Email linked",
                  role: u.role,
                  points: u.points,
                  streak: u.streak,
