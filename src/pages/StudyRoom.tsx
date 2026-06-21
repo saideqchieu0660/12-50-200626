@@ -1,8 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { store, Flashcard, Deck } from "../lib/store";
 import localforage from "localforage";
-import { getOfflineDeck, saveDeckOffline, deleteOfflineDeck, isDeckSavedOffline } from '../utils/offlineDb';
+import {
+  getOfflineDeck,
+  saveDeckOffline,
+  deleteOfflineDeck,
+  isDeckSavedOffline,
+} from "../utils/offlineDb";
 import {
   Check,
   X,
@@ -52,7 +63,14 @@ import { motion } from "motion/react";
 import { triggerCelebration } from "../lib/celebration";
 import { v4 as uuidv4 } from "uuid";
 import { db, auth, FirebaseListenerManager } from "../lib/firebase";
-import { doc, onSnapshot, collection, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import {
+  doc,
+  onSnapshot,
+  collection,
+  getDoc,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
 import { toast } from "sonner";
 import {
   ResponsiveContainer,
@@ -78,39 +96,51 @@ import { GlobalActivityFeed } from "../components/GlobalActivityFeed";
 import { VirtualizedFlashcardList } from "../components/VirtualizedFlashcardList";
 import { useTheme } from "../components/ThemeProvider";
 
-export function detectLanguage(text: string): { isAvailable: boolean; locale: 'en-US' | 'vi-VN' | '' } {
-  if (!text) return { isAvailable: false, locale: '' };
-  
+export function detectLanguage(text: string): {
+  isAvailable: boolean;
+  locale: "en-US" | "vi-VN" | "";
+} {
+  if (!text) return { isAvailable: false, locale: "" };
+
   // Clean up code/LaTeX/symbols and Markdown markers
   const clean = text
-    .replace(/\$\$[\s\S]*?\$\$/g, '')
-    .replace(/\$[\s\S]*?\$/g, '')
+    .replace(/\$\$[\s\S]*?\$\$/g, "")
+    .replace(/\$[\s\S]*?\$/g, "")
     .replace(/[*_#`\\[\]]/g, "")
     .trim();
-    
-  if (!clean) return { isAvailable: false, locale: '' };
+
+  if (!clean) return { isAvailable: false, locale: "" };
 
   // Check if there are any alphabet letters
-  const hasLetters = /[a-zA-Záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ]/i.test(clean);
-  if (!hasLetters) return { isAvailable: false, locale: '' };
+  const hasLetters =
+    /[a-zA-Záàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ]/i.test(
+      clean,
+    );
+  if (!hasLetters) return { isAvailable: false, locale: "" };
 
   // Check for foreign scripts we do not support
-  const hasOtherScripts = /[\u4e00-\u9fa5\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af\u0400-\u04ff]/i.test(clean);
-  if (hasOtherScripts) return { isAvailable: false, locale: '' };
+  const hasOtherScripts =
+    /[\u4e00-\u9fa5\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af\u0400-\u04ff]/i.test(
+      clean,
+    );
+  if (hasOtherScripts) return { isAvailable: false, locale: "" };
 
   // Vietnamese diacritics
-  const hasViDiacritics = /[áàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ]/i.test(clean);
+  const hasViDiacritics =
+    /[áàảãạâấầẩẫậăắằẳẵặéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵđ]/i.test(
+      clean,
+    );
   if (hasViDiacritics) {
-    return { isAvailable: true, locale: 'vi-VN' };
+    return { isAvailable: true, locale: "vi-VN" };
   }
 
   // English letters
   const hasEnLetters = /[a-zA-Z]/.test(clean);
   if (hasEnLetters) {
-    return { isAvailable: true, locale: 'en-US' };
+    return { isAvailable: true, locale: "en-US" };
   }
 
-  return { isAvailable: false, locale: '' };
+  return { isAvailable: false, locale: "" };
 }
 
 const ParsedTextContent = ({ text }: { text: string }) => {
@@ -133,24 +163,38 @@ const ParsedTextContent = ({ text }: { text: string }) => {
 
     // Smart detection of Vietnamese/English on the first part
     const firstPart = parts[0] || "";
-    const hasViAccent = /[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệđìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵĐ]/i.test(firstPart);
-    const hasViStopwords = /\b(la|bi|duoc|cua|va|hoac|cho|trong|mot|nhu|voi|nhung|co|khong|de|nay|kia|tren|duoi|trai|phai|nay|kia|ay|la|ma|vi)\b/i.test(firstPart);
+    const hasViAccent =
+      /[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệđìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵĐ]/i.test(
+        firstPart,
+      );
+    const hasViStopwords =
+      /\b(la|bi|duoc|cua|va|hoac|cho|trong|mot|nhu|voi|nhung|co|khong|de|nay|kia|tren|duoi|trai|phai|nay|kia|ay|la|ma|vi)\b/i.test(
+        firstPart,
+      );
     const isFirstPartEnglish = !hasViAccent && !hasViStopwords;
 
     return (
       <div className="space-y-3 text-left w-full px-1 sm:px-2">
         {parts.map((p, i) => {
-          const labelIcon = i === 0
-            ? (isFirstPartEnglish ? "🇬🇧" : "🇻🇳")
-            : i === 1
-              ? "🇻🇳"
-              : "💡";
+          const labelIcon =
+            i === 0
+              ? isFirstPartEnglish
+                ? "🇬🇧"
+                : "🇻🇳"
+              : i === 1
+                ? "🇻🇳"
+                : "💡";
 
-          const labelText = i === 0
-            ? (isFirstPartEnglish ? "Định nghĩa (English)" : "Nghĩa chính (Tiếng Việt)")
-            : i === 1
-              ? (isFirstPartEnglish ? "Nghĩa (Tiếng Việt)" : "Nét nghĩa khác (Tiếng Việt)")
-              : "Phân tích / Ví dụ";
+          const labelText =
+            i === 0
+              ? isFirstPartEnglish
+                ? "Định nghĩa (English)"
+                : "Nghĩa chính (Tiếng Việt)"
+              : i === 1
+                ? isFirstPartEnglish
+                  ? "Nghĩa (Tiếng Việt)"
+                  : "Nét nghĩa khác (Tiếng Việt)"
+                : "Phân tích / Ví dụ";
 
           return (
             <div
@@ -174,9 +218,7 @@ const ParsedTextContent = ({ text }: { text: string }) => {
                       : "text-zinc-500 dark:text-zinc-400",
                 )}
               >
-                <span className="text-sm">
-                  {labelIcon}
-                </span>
+                <span className="text-sm">{labelIcon}</span>
                 {labelText}
               </p>
               <p
@@ -219,8 +261,11 @@ export default function StudyRoom() {
   }, []);
 
   const user = store.getCurrentUser();
-  const isAdminMode = sessionStorage.getItem('isAdminMode') !== 'false' && 
-                      (user?.role === "admin" || user?.role === "Admin" || user?.role === "teacher");
+  const isAdminMode =
+    sessionStorage.getItem("isAdminMode") !== "false" &&
+    (user?.role === "admin" ||
+      user?.role === "Admin" ||
+      user?.role === "teacher");
   const homePath = isAdminMode ? "/teacher" : "/dashboard";
   const handleBack = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -234,9 +279,7 @@ export default function StudyRoom() {
   const { deckId: rawDeckId } = useParams();
   const deckId = rawDeckId ? decodeURIComponent(rawDeckId) : "";
   const [isLoading, setIsLoading] = useState(true);
-  const [rawDeck, setRawDeck] = useState<any>(() =>
-    store.getDeck(deckId),
-  );
+  const [rawDeck, setRawDeck] = useState<any>(() => store.getDeck(deckId));
   const [personalCardStates, setPersonalCardStates] = useState<any[]>([]);
   const [accessDenied, setAccessDenied] = useState(false);
   const [isOfflineSaved, setIsOfflineSaved] = useState(false);
@@ -244,7 +287,9 @@ export default function StudyRoom() {
   // Quick Notes Scratchpad states
   const [scratchpadText, setScratchpadText] = useState("");
   const [isNotesSaving, setIsNotesSaving] = useState(false);
-  const [lastNotesSavedTime, setLastNotesSavedTime] = useState<string | null>(null);
+  const [lastNotesSavedTime, setLastNotesSavedTime] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     const handleSync = () => {
@@ -263,42 +308,47 @@ export default function StudyRoom() {
     if (!deckId || !user) return;
 
     // Check offline saved state and load immediately if offline
-      isDeckSavedOffline(deckId).then(setIsOfflineSaved);
-      
-      if (!navigator.onLine) {
-        if (deckId === "daily-quest") {
-          localforage.getItem("cached_roadmap").then((cachedRoadmap) => {
-              if (cachedRoadmap && Array.isArray(cachedRoadmap)) {
-                toast("Mạng ngoại tuyến, hiển thị lộ trình tuyến Offline PWA.");
-                const dailyDeck = {
-                  id: "daily-quest",
-                  title: "Nhiệm vụ hôm nay (Daily Quest)",
-                  subject: "Spaced Repetition",
-                  description: "Được tự động tạo bởi SM-2 bằng Thuật toán phân cực.",
-                  cards: cachedRoadmap,
-                  createdAt: new Date().toISOString(),
-                  ownerId: "system",
-                };
-                setRawDeck(dailyDeck);
-                store.setTempDeck(dailyDeck);
-              } else {
-                toast("Không có lộ trình ngoại tuyến nào khả dụng.");
-                navigate(user?.role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard');
-              }
-              setIsLoading(false);
-            });
-        } else {
-          getOfflineDeck(deckId).then((offlineDeck) => {
-            if (offlineDeck) {
-              console.log("Loaded offline deck from DB:", offlineDeck);
-              setRawDeck(offlineDeck);
-              store.setTempDeck(offlineDeck);
-              setIsOfflineSaved(true);
-            }
-            setIsLoading(false);
-          });
-        }
+    isDeckSavedOffline(deckId).then(setIsOfflineSaved);
+
+    if (!navigator.onLine) {
+      if (deckId === "daily-quest") {
+        localforage.getItem("cached_roadmap").then((cachedRoadmap) => {
+          if (cachedRoadmap && Array.isArray(cachedRoadmap)) {
+            toast("Mạng ngoại tuyến, hiển thị lộ trình tuyến Offline PWA.");
+            const dailyDeck = {
+              id: "daily-quest",
+              title: "Nhiệm vụ hôm nay (Daily Quest)",
+              subject: "Spaced Repetition",
+              description:
+                "Được tự động tạo bởi SM-2 bằng Thuật toán phân cực.",
+              cards: cachedRoadmap,
+              createdAt: new Date().toISOString(),
+              ownerId: "system",
+            };
+            setRawDeck(dailyDeck);
+            store.setTempDeck(dailyDeck);
+          } else {
+            toast("Không có lộ trình ngoại tuyến nào khả dụng.");
+            navigate(
+              user?.role === "teacher"
+                ? "/teacher-dashboard"
+                : "/student-dashboard",
+            );
+          }
+          setIsLoading(false);
+        });
+      } else {
+        getOfflineDeck(deckId).then((offlineDeck) => {
+          if (offlineDeck) {
+            console.log("Loaded offline deck from DB:", offlineDeck);
+            setRawDeck(offlineDeck);
+            store.setTempDeck(offlineDeck);
+            setIsOfflineSaved(true);
+          }
+          setIsLoading(false);
+        });
       }
+    }
 
     if (!navigator.onLine) {
       return;
@@ -314,7 +364,8 @@ export default function StudyRoom() {
         // Auto-generate daily-quest
         const buildDailyQuest = async () => {
           try {
-            const safeRequest = (await import("../utils/apiClient")).safeRequest;
+            const safeRequest = (await import("../utils/apiClient"))
+              .safeRequest;
             const { getDocs, collection } = await import("firebase/firestore");
 
             const snapshot = await getDocs(collection(db, "sets"));
@@ -323,15 +374,31 @@ export default function StudyRoom() {
               const data = docSnap.data() as any;
               if (data && Array.isArray(data.cards)) {
                 const systemDecks = [
-                  "deck_1", "deck_phil_2", "deck_math_1", "deck_math_2", "deck_physics_1", "deck_physics_2"
+                  "deck_1",
+                  "deck_phil_2",
+                  "deck_math_1",
+                  "deck_math_2",
+                  "deck_physics_1",
+                  "deck_physics_2",
                 ];
                 const isSystem = systemDecks.includes(data.id);
                 const isCreatedBySelf = data.createdBy === user.id;
-                const isCreatedByTeacher = data.creatorRole === "teacher" || data.creatorRole === "Admin" || data.creatorRole === "admin";
-                
-                const isUserTeacher = user.role === "teacher" || user.role === "Admin" || user.role === "admin";
+                const isCreatedByTeacher =
+                  data.creatorRole === "teacher" ||
+                  data.creatorRole === "Admin" ||
+                  data.creatorRole === "admin";
 
-                if (isSystem || isCreatedBySelf || isUserTeacher || isCreatedByTeacher) {
+                const isUserTeacher =
+                  user.role === "teacher" ||
+                  user.role === "Admin" ||
+                  user.role === "admin";
+
+                if (
+                  isSystem ||
+                  isCreatedBySelf ||
+                  isUserTeacher ||
+                  isCreatedByTeacher
+                ) {
                   data.cards.forEach((c: any) => {
                     allCards.push({
                       ...c,
@@ -343,7 +410,10 @@ export default function StudyRoom() {
               }
             });
 
-            const homePath = user?.role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard';
+            const homePath =
+              user?.role === "teacher"
+                ? "/teacher-dashboard"
+                : "/student-dashboard";
 
             if (allCards.length === 0) {
               navigate(homePath);
@@ -361,9 +431,11 @@ export default function StudyRoom() {
               navigate(homePath);
               return;
             }
-            
+
             // CACHE ROADMAP
-            await localforage.setItem("cached_roadmap", reqData.cards).catch(console.warn);
+            await localforage
+              .setItem("cached_roadmap", reqData.cards)
+              .catch(console.warn);
 
             const dailyDeck = {
               id: "daily-quest",
@@ -381,35 +453,44 @@ export default function StudyRoom() {
             setIsLoading(false);
           } catch (e) {
             console.error("Auto daily quest generation failed:", e);
-            const homePath = user?.role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard';
-            
+            const homePath =
+              user?.role === "teacher"
+                ? "/teacher-dashboard"
+                : "/student-dashboard";
+
             // Fallback on Catch: If network failed unexpectedly during fetch
             try {
               const cachedRoadmap = await localforage.getItem("cached_roadmap");
               if (cachedRoadmap && Array.isArray(cachedRoadmap)) {
-                  toast("Mạng không ổn định. Kích hoạt dự phòng lộ trình Offline.");
-                  const dailyDeck = {
-                     id: "daily-quest",
-                     title: "Nhiệm vụ hôm nay (Daily Quest)",
-                     subject: "Spaced Repetition",
-                     description: "Được tự động tạo bởi SM-2 bằng Thuật toán phân cực.",
-                     cards: cachedRoadmap,
-                     createdAt: new Date().toISOString(),
-                     ownerId: "system"
-                  };
-                  store.setTempDeck(dailyDeck);
-                  setRawDeck(dailyDeck);
-                  setIsLoading(false);
-                  return;
+                toast(
+                  "Mạng không ổn định. Kích hoạt dự phòng lộ trình Offline.",
+                );
+                const dailyDeck = {
+                  id: "daily-quest",
+                  title: "Nhiệm vụ hôm nay (Daily Quest)",
+                  subject: "Spaced Repetition",
+                  description:
+                    "Được tự động tạo bởi SM-2 bằng Thuật toán phân cực.",
+                  cards: cachedRoadmap,
+                  createdAt: new Date().toISOString(),
+                  ownerId: "system",
+                };
+                store.setTempDeck(dailyDeck);
+                setRawDeck(dailyDeck);
+                setIsLoading(false);
+                return;
               }
             } catch (fallbackErr) {}
-            
+
             navigate(homePath);
           }
         };
         buildDailyQuest();
       } else if (deckId === "remind-later-deck") {
-        const homePath = user?.role === 'teacher' ? '/teacher-dashboard' : '/student-dashboard';
+        const homePath =
+          user?.role === "teacher"
+            ? "/teacher-dashboard"
+            : "/student-dashboard";
         navigate(homePath);
       }
       return;
@@ -418,56 +499,64 @@ export default function StudyRoom() {
     let unsubAuth: any = null;
 
     const setupAuthAndListen = () => {
-       unsubAuth = import("firebase/auth").then(({ onAuthStateChanged }) => {
-          return onAuthStateChanged(auth, (firebaseUser) => {
-             if (!firebaseUser && navigator.onLine) {
-                 // Wait for auth to resolve
-                 return;
-             }
-             
-             if (unsubDeckRef.current) {
-                 unsubDeckRef.current();
-             }
-             
-             try {
-                const unsub = onSnapshot(doc(db, "sets", deckId), (docSnap) => {
-                  if (docSnap.exists()) {
-                    const fetchedData = docSnap.data();
-                    if (fetchedData && !fetchedData.id) fetchedData.id = docSnap.id;
-                    setRawDeck(fetchedData);
-                    store.setTempDeck(fetchedData);
-                  } else {
-                    // Fallback to IndexedDB if document does not exist
-                    getOfflineDeck(deckId).then((offlineDeck) => {
-                      if (offlineDeck) {
-                        setRawDeck(offlineDeck);
-                          store.setTempDeck(offlineDeck);
-                          setIsOfflineSaved(true);
-                        }
-                      });
-                  }
-                  setIsLoading(false);
-                }, (err) => {
-                  console.error("onSnapshot failed, falling back to IndexedDB database:", err);
+      unsubAuth = import("firebase/auth").then(({ onAuthStateChanged }) => {
+        return onAuthStateChanged(auth, (firebaseUser) => {
+          if (!firebaseUser && navigator.onLine) {
+            // Wait for auth to resolve
+            return;
+          }
+
+          if (unsubDeckRef.current) {
+            unsubDeckRef.current();
+          }
+
+          try {
+            const unsub = onSnapshot(
+              doc(db, "sets", deckId),
+              (docSnap) => {
+                if (docSnap.exists()) {
+                  const fetchedData = docSnap.data();
+                  if (fetchedData && !fetchedData.id)
+                    fetchedData.id = docSnap.id;
+                  setRawDeck(fetchedData);
+                  store.setTempDeck(fetchedData);
+                } else {
+                  // Fallback to IndexedDB if document does not exist
                   getOfflineDeck(deckId).then((offlineDeck) => {
                     if (offlineDeck) {
                       setRawDeck(offlineDeck);
                       store.setTempDeck(offlineDeck);
                       setIsOfflineSaved(true);
                     }
-                    setIsLoading(false);
                   });
-                });
-                unsubDeckRef.current = unsub;
-                FirebaseListenerManager.add(`StudyRoom_deck_${deckId}`, unsub);
-              } catch (e) {
-                console.error("Failed to sync room deck in real-time:", e);
+                }
                 setIsLoading(false);
-              }
-          });
-       });
+              },
+              (err) => {
+                console.error(
+                  "onSnapshot failed, falling back to IndexedDB database:",
+                  err,
+                );
+                getOfflineDeck(deckId).then((offlineDeck) => {
+                  if (offlineDeck) {
+                    setRawDeck(offlineDeck);
+                    store.setTempDeck(offlineDeck);
+                    setIsOfflineSaved(true);
+                  }
+                  setIsLoading(false);
+                });
+              },
+            );
+            unsubDeckRef.current = unsub;
+            FirebaseListenerManager.add(`StudyRoom_deck_${deckId}`, unsub);
+          } catch (e) {
+            console.error("Failed to sync room deck in real-time:", e);
+            setIsLoading(false);
+          }
+        });
+      });
     };
-    
+
     setupAuthAndListen();
 
     return () => {
@@ -477,7 +566,9 @@ export default function StudyRoom() {
       }
       FirebaseListenerManager.remove(`StudyRoom_deck_${deckId}`);
       if (unsubAuth) {
-         unsubAuth.then((unsub: any) => { if (unsub) unsub(); });
+        unsubAuth.then((unsub: any) => {
+          if (unsub) unsub();
+        });
       }
     };
   }, [deckId, user?.id]);
@@ -493,31 +584,31 @@ export default function StudyRoom() {
   useEffect(() => {
     if (!user) return;
     let unsubAuthStates: any = null;
-    
+
     unsubAuthStates = import("firebase/auth").then(({ onAuthStateChanged }) => {
       return onAuthStateChanged(auth, (firebaseUser) => {
-         if (!firebaseUser && navigator.onLine) return; // Wait until authenticated
-         
-         if (unsubCardStatesRef.current) unsubCardStatesRef.current();
-         try {
-            const unsub = onSnapshot(
-              collection(db, "users", user.id, "cardsState"),
-              (snapshot) => {
-                const states: any[] = [];
-                snapshot.forEach((docSnap) => {
-                  states.push({ id: docSnap.id, ...docSnap.data() });
-                });
-                setPersonalCardStates(states);
-              },
-              (err) => {
-                console.error("StudyRoom cardsState sync error:", err);
-              },
-            );
-            unsubCardStatesRef.current = unsub;
-            FirebaseListenerManager.add(`StudyRoom_cardsState_${user.id}`, unsub);
-          } catch (e) {
-            console.error("Failed to sync study room card states:", e);
-          }
+        if (!firebaseUser && navigator.onLine) return; // Wait until authenticated
+
+        if (unsubCardStatesRef.current) unsubCardStatesRef.current();
+        try {
+          const unsub = onSnapshot(
+            collection(db, "users", user.id, "cardsState"),
+            (snapshot) => {
+              const states: any[] = [];
+              snapshot.forEach((docSnap) => {
+                states.push({ id: docSnap.id, ...docSnap.data() });
+              });
+              setPersonalCardStates(states);
+            },
+            (err) => {
+              console.error("StudyRoom cardsState sync error:", err);
+            },
+          );
+          unsubCardStatesRef.current = unsub;
+          FirebaseListenerManager.add(`StudyRoom_cardsState_${user.id}`, unsub);
+        } catch (e) {
+          console.error("Failed to sync study room card states:", e);
+        }
       });
     });
 
@@ -528,7 +619,9 @@ export default function StudyRoom() {
       }
       FirebaseListenerManager.remove(`StudyRoom_cardsState_${user?.id}`);
       if (unsubAuthStates) {
-         unsubAuthStates.then((unsub: any) => { if (unsub) unsub(); });
+        unsubAuthStates.then((unsub: any) => {
+          if (unsub) unsub();
+        });
       }
     };
   }, [user?.id]);
@@ -601,7 +694,7 @@ export default function StudyRoom() {
   // Load scratchpad from Firestore, fallback to Local Storage
   useEffect(() => {
     if (!user || !deckId) return;
-    
+
     const localKey = `scratchpad_${user.id}_${deckId}`;
     const localContent = localStorage.getItem(localKey) || "";
     setScratchpadText(localContent);
@@ -619,7 +712,7 @@ export default function StudyRoom() {
         console.error("Lỗi khi tải ghi chú nhanh:", err);
       }
     };
-    
+
     if (navigator.onLine) {
       loadNotes();
     }
@@ -628,7 +721,7 @@ export default function StudyRoom() {
   // Debounce Auto-Save scratchpad to Firestore & Local Storage
   useEffect(() => {
     if (!user || !deckId) return;
-    
+
     const localKey = `scratchpad_${user.id}_${deckId}`;
     const cached = localStorage.getItem(localKey) || "";
     if (scratchpadText === cached) {
@@ -641,15 +734,23 @@ export default function StudyRoom() {
       setIsNotesSaving(true);
       try {
         const docRef = doc(db, "users", user.id, "scratchpads", deckId);
-        await setDoc(docRef, {
-          content: scratchpadText,
-          updatedAt: new Date().toISOString(),
-          deckId: deckId,
-          deckTitle: deck?.title || "Sổ tay phòng học"
-        }, { merge: true });
-        
+        await setDoc(
+          docRef,
+          {
+            content: scratchpadText,
+            updatedAt: new Date().toISOString(),
+            deckId: deckId,
+            deckTitle: deck?.title || "Sổ tay phòng học",
+          },
+          { merge: true },
+        );
+
         const now = new Date();
-        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const timeStr = now.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
         setLastNotesSavedTime(timeStr);
       } catch (err) {
         console.error("Lỗi tự động lưu ghi chú:", err);
@@ -805,10 +906,18 @@ export default function StudyRoom() {
   const canEditDeck = useMemo(() => {
     if (!user || !deck) return false;
     const systemDecks = [
-      "deck_1", "deck_phil_2", "deck_math_1", "deck_math_2", "deck_physics_1", "deck_physics_2", "daily-quest", "remind-later-deck"
+      "deck_1",
+      "deck_phil_2",
+      "deck_math_1",
+      "deck_math_2",
+      "deck_physics_1",
+      "deck_physics_2",
+      "daily-quest",
+      "remind-later-deck",
     ];
     const isSystem = systemDecks.includes(deck.id);
-    const isAdmin = user.role === "admin" || user.role === "Admin" || user.role === "teacher";
+    const isAdmin =
+      user.role === "admin" || user.role === "Admin" || user.role === "teacher";
     const isCreator = deck.createdBy === user.id;
 
     if (isSystem) {
@@ -879,10 +988,10 @@ export default function StudyRoom() {
     const cleanDeck = {
       title: deck.title,
       subject: deck.subject,
-      cards: deck.cards.map(card => ({
+      cards: deck.cards.map((card) => ({
         front: card.front || "",
-        back: card.back || ""
-      }))
+        back: card.back || "",
+      })),
     };
     const blob = new Blob([JSON.stringify(cleanDeck, null, 2)], {
       type: "application/json",
@@ -897,7 +1006,9 @@ export default function StudyRoom() {
 
   useEffect(() => {
     if (deck && isOfflineSaved) {
-      saveDeckOffline(deck).catch(e => console.error("Error backing up updated deck to offline DB:", e));
+      saveDeckOffline(deck).catch((e) =>
+        console.error("Error backing up updated deck to offline DB:", e),
+      );
     }
   }, [deck, isOfflineSaved]);
 
@@ -977,23 +1088,25 @@ export default function StudyRoom() {
   // Đồng bộ thời gian thực Thẻ X (weak cards) giữa Firestore sync deck và localStorage kéo theo đa thiết bị
   useEffect(() => {
     if (!deck || !deck.cards) return;
-    
+
     const storageKey = `weak_cards_${deck.id}`;
-    const savedWeakIds: string[] = JSON.parse(localStorage.getItem(storageKey) || "[]");
-    
+    const savedWeakIds: string[] = JSON.parse(
+      localStorage.getItem(storageKey) || "[]",
+    );
+
     const finalWeakIdsSet = new Set<string>();
-    
+
     // 1. Quét tất cả thẻ được đánh dấu là isHard: true từ Firestore / store memory
     deck.cards.forEach((c: any) => {
       if (c.isHard) {
         finalWeakIdsSet.add(c.id);
       }
     });
-    
+
     // 2. Bảo lưu các thẻ X trong localStorage nếu thẻ đó vẫn tồn tại trong bộ này
     // và chưa bị đánh dấu rõ ràng là isHard = false ở trên Firestore (khớp trạng thái)
     const cardsInDeck = new Set(deck.cards.map((c: any) => c.id));
-    savedWeakIds.forEach(id => {
+    savedWeakIds.forEach((id) => {
       if (cardsInDeck.has(id)) {
         const cardObj = deck.cards.find((c: any) => c.id === id);
         if (cardObj && cardObj.isHard !== false) {
@@ -1003,18 +1116,18 @@ export default function StudyRoom() {
     });
 
     const finalWeakIds = Array.from(finalWeakIdsSet);
-    
+
     // Tránh render lặp vô tận bằng cách so sánh sâu mảng
-    const hasDiff = 
+    const hasDiff =
       finalWeakIds.length !== savedWeakIds.length ||
-      !finalWeakIds.every(id => savedWeakIds.includes(id)) ||
+      !finalWeakIds.every((id) => savedWeakIds.includes(id)) ||
       finalWeakIds.length !== weakCardIds.length ||
-      !finalWeakIds.every(id => weakCardIds.includes(id));
-      
+      !finalWeakIds.every((id) => weakCardIds.includes(id));
+
     if (hasDiff) {
       try {
         localStorage.setItem(storageKey, JSON.stringify(finalWeakIds));
-      } catch(e) {
+      } catch (e) {
         console.warn("Storage Quota Exceeded", e);
       }
       setWeakCardIds(finalWeakIds);
@@ -1061,7 +1174,7 @@ export default function StudyRoom() {
         }
       }
       setStudyQueue(due);
-      
+
       // Restore study progress
       const progressKey = `study_progress_${user?.id || "guest"}_${deck.id}`;
       const savedIdxStr = localStorage.getItem(progressKey);
@@ -1157,7 +1270,8 @@ export default function StudyRoom() {
     setIsUpdatingCard(true);
     try {
       const { db } = await import("../lib/firebase");
-      const { doc, getDoc, updateDoc, arrayRemove } = await import("firebase/firestore");
+      const { doc, getDoc, updateDoc, arrayRemove } =
+        await import("firebase/firestore");
 
       const targetDeckId = (currentCard as any).originDeckId || deck.id;
       const docRef = doc(db, "sets", targetDeckId);
@@ -1165,17 +1279,19 @@ export default function StudyRoom() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         const currentCards = data.cards || [];
-        const originalCardObj = currentCards.find((c: any) => c.id === currentCard.id);
+        const originalCardObj = currentCards.find(
+          (c: any) => c.id === currentCard.id,
+        );
         if (originalCardObj) {
           await updateDoc(docRef, {
-            cards: arrayRemove(originalCardObj)
+            cards: arrayRemove(originalCardObj),
           });
         }
       }
 
       // Update local storage and app state
       store.removeCardLocally(targetDeckId, currentCard.id);
-      
+
       // Calculate advancing index
       const totalInQueue = studyQueue.length;
       if (totalInQueue <= 1) {
@@ -1202,32 +1318,39 @@ export default function StudyRoom() {
     }
   }, [deck, currentCard, canEditDeck, studyQueue, currentIndex]);
 
-  const startDeleteCountdown = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (deleteTimerRef.current) {
-      clearInterval(deleteTimerRef.current);
-    }
-    setDeleteCountdown(5);
-    
-    const intervalId = setInterval(() => {
-      setDeleteCountdown((prev) => {
-        if (prev === null) {
-          clearInterval(intervalId);
-          return null;
-        }
-        if (prev <= 1) {
-          clearInterval(intervalId);
-          deleteTimerRef.current = null;
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    deleteTimerRef.current = intervalId;
-  }, [executeActiveCardDeletion]);
+  const startDeleteCountdown = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (deleteTimerRef.current) {
+        clearInterval(deleteTimerRef.current);
+      }
+      setDeleteCountdown(5);
 
-  const handleListen = (e?: React.MouseEvent, text?: string, forceLocale?: string) => {
+      const intervalId = setInterval(() => {
+        setDeleteCountdown((prev) => {
+          if (prev === null) {
+            clearInterval(intervalId);
+            return null;
+          }
+          if (prev <= 1) {
+            clearInterval(intervalId);
+            deleteTimerRef.current = null;
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      deleteTimerRef.current = intervalId;
+    },
+    [executeActiveCardDeletion],
+  );
+
+  const handleListen = (
+    e?: React.MouseEvent,
+    text?: string,
+    forceLocale?: string,
+  ) => {
     if (e) e.stopPropagation();
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
@@ -1235,15 +1358,16 @@ export default function StudyRoom() {
     const targetText = text || currentCard?.front || "";
     // Clean up basic markdown symbols, LaTeX and math blocks for better reading
     const cleanText = targetText
-      .replace(/\$\$[\s\S]*?\$\$/g, '')
-      .replace(/\$[\s\S]*?\$/g, '')
+      .replace(/\$\$[\s\S]*?\$\$/g, "")
+      .replace(/\$[\s\S]*?\$/g, "")
       .replace(/[*_#`\\[\]]/g, "")
       .trim();
     if (!cleanText) return;
 
     // Detect language if not forced
     const detection = detectLanguage(targetText);
-    const locale = forceLocale || (detection.isAvailable ? detection.locale : "en-US");
+    const locale =
+      forceLocale || (detection.isAvailable ? detection.locale : "en-US");
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = locale;
@@ -1253,15 +1377,21 @@ export default function StudyRoom() {
     if (typeof window !== "undefined" && window.speechSynthesis) {
       const voices = window.speechSynthesis.getVoices();
       // Find voices matching the locale prefix or exact match
-      const exactMatch = voices.find(v => v.lang.toLowerCase() === locale.toLowerCase() || v.lang.toLowerCase().replace('_', '-') === locale.toLowerCase());
+      const exactMatch = voices.find(
+        (v) =>
+          v.lang.toLowerCase() === locale.toLowerCase() ||
+          v.lang.toLowerCase().replace("_", "-") === locale.toLowerCase(),
+      );
       if (exactMatch) {
-         utterance.voice = exactMatch;
+        utterance.voice = exactMatch;
       } else {
-         const prefix = locale.split('-')[0].toLowerCase();
-         const prefixMatch = voices.find(v => v.lang.toLowerCase().startsWith(prefix));
-         if (prefixMatch) {
-            utterance.voice = prefixMatch;
-         }
+        const prefix = locale.split("-")[0].toLowerCase();
+        const prefixMatch = voices.find((v) =>
+          v.lang.toLowerCase().startsWith(prefix),
+        );
+        if (prefixMatch) {
+          utterance.voice = prefixMatch;
+        }
       }
     }
 
@@ -1273,8 +1403,9 @@ export default function StudyRoom() {
     if (!currentCard || isGeneratingCloze) return;
     setIsGeneratingCloze(true);
     try {
-      if (!auth.currentUser) throw new Error("Vui lòng đăng nhập để sử dụng AI.");
-      
+      if (!auth.currentUser)
+        throw new Error("Vui lòng đăng nhập để sử dụng AI.");
+
       const res = await safeRequest("/api/automation/hydrate-card", {
         method: "POST",
         body: JSON.stringify({
@@ -1283,14 +1414,14 @@ export default function StudyRoom() {
           back: currentCard.back || "",
         }),
       });
-      
+
       if (!res.ok) throw new Error("API Exception");
       const data = await res.json();
-      
+
       if (data.example) {
         const targetDeckId = currentCard.originDeckId || deck?.id;
         if (!targetDeckId) throw new Error("Chưa xác định ID nhóm thẻ.");
-        
+
         // Cập nhật Firebase ngay lập tức
         let docRef = doc(db, "sets", targetDeckId);
         const docSnap = await getDoc(docRef);
@@ -1300,20 +1431,26 @@ export default function StudyRoom() {
           const updatedDocCards = docCards.map((c: any) =>
             c.id === currentCard.id
               ? { ...c, example_sentence: data.example }
-              : c
+              : c,
           );
           await updateDoc(docRef, { cards: updatedDocCards });
         }
-        
+
         // Update local object & store
         currentCard.example_sentence = data.example;
-        store.updateCard(targetDeckId, currentCard.id, currentCard.front, currentCard.back, data.example);
-        
+        store.updateCard(
+          targetDeckId,
+          currentCard.id,
+          currentCard.front,
+          currentCard.back,
+          data.example,
+        );
+
         toast.success("✅ Đã tạo câu ví dụ để đục lỗ thông minh.");
       } else {
         toast.error("Không thể tạo câu đục lỗ hợp lý.");
       }
-    } catch(err: any) {
+    } catch (err: any) {
       toast.error(err.message || "Lỗi kết nối AI khi tạo câu đục lỗ.");
       console.error(err);
     } finally {
@@ -1332,24 +1469,27 @@ export default function StudyRoom() {
 
   const renderStudyCloze = () => {
     if (!currentCard) return null;
-    
+
     let sentence = getClozeSentence();
-    
+
     // Tìm cụm đặt trong ngoặc vuông [...]
     const regex = /\[(.*?)\]/;
     let match = sentence.match(regex);
-    
+
     // Nếu không tìm thấy cụm đặt trong ngoặc vuông, thử tìm từ khoá trùng khớp với currentCard.front (không phân biệt chữ hoa thường)
     if (!match && currentCard.front) {
-      const escapedWord = currentCard.front.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const escapedWord = currentCard.front.replace(
+        /[-\/\\^$*+?.()|[\]{}]/g,
+        "\\$&",
+      );
       // Tìm nguyên từ hoặc cụm từ khớp
-      const wordRegex = new RegExp(`\\b(${escapedWord})\\b`, 'i');
+      const wordRegex = new RegExp(`\\b(${escapedWord})\\b`, "i");
       if (wordRegex.test(sentence)) {
-        sentence = sentence.replace(wordRegex, '[$1]');
+        sentence = sentence.replace(wordRegex, "[$1]");
         match = sentence.match(regex);
       }
     }
-    
+
     if (!match) {
       // Fallback khi không khớp gì cả
       return (
@@ -1358,20 +1498,24 @@ export default function StudyRoom() {
         </p>
       );
     }
-    
+
     const targetWord = match[1];
     const sentenceBefore = sentence.substring(0, match.index);
     const sentenceAfter = sentence.substring(match.index! + match[0].length);
     const hint = targetWord.charAt(0) + "_".repeat(targetWord.length - 1);
-    
+
     const isFallback = !currentCard?.example_sentence;
-    const isComplexOrLong = currentCard?.front ? (currentCard.front.split(' ').length >= 3 || /[\/≠=()]/.test(currentCard.front) || currentCard.front.length > 20) : false;
+    const isComplexOrLong = currentCard?.front
+      ? currentCard.front.split(" ").length >= 3 ||
+        /[\/≠=()]/.test(currentCard.front) ||
+        currentCard.front.length > 20
+      : false;
 
     return (
       <div className="flex flex-col items-center justify-center w-full px-2">
         <p className="text-lg sm:text-xl md:text-2xl font-medium text-zinc-800 dark:text-zinc-200 leading-relaxed text-center px-4 w-full">
           {sentenceBefore}
-          <span 
+          <span
             onClick={(e) => {
               // Ngăn sự kiện click lật thẻ khi bấm vào ô đục lỗ nếu muốn
               e.stopPropagation();
@@ -1380,31 +1524,43 @@ export default function StudyRoom() {
             }}
             className={cn(
               "mx-1.5 px-3 py-0.5 rounded-lg border font-bold transition-all inline-block select-none shadow-sm cursor-pointer",
-              isFlipped 
-                ? "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300 border-green-300 dark:border-green-800" 
+              isFlipped
+                ? "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300 border-green-300 dark:border-green-800"
                 : isHintRevealed
                   ? "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border-blue-300 dark:border-blue-800"
-                  : "bg-orange-100 text-orange-800 dark:bg-orange-950/30 dark:text-orange-400 border-orange-350 dark:border-orange-800/50"
+                  : "bg-orange-100 text-orange-800 dark:bg-orange-950/30 dark:text-orange-400 border-orange-350 dark:border-orange-800/50",
             )}
             title="Bấm để bật/tắt gợi ý từ này"
           >
-            {isFlipped ? targetWord : (isHintRevealed ? hint : "________")}
+            {isFlipped ? targetWord : isHintRevealed ? hint : "________"}
           </span>
           {sentenceAfter}
         </p>
 
         {isFallback && isComplexOrLong && (
-           <div className="mt-8 flex flex-col items-center justify-center" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={handleGenerateAICloze}
-                disabled={isGeneratingCloze}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600 shadow-md transition-all font-medium text-sm disabled:opacity-70 disabled:cursor-wait"
-              >
-                  {isGeneratingCloze ? <RefreshCcw className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                  {isGeneratingCloze ? "AI Đang xử lý..." : "Agent 2: Sinh câu đục lỗ ngữ cảnh"}
-              </button>
-              <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500 max-w-xs text-center font-light">Thẻ này hơi phức tạp để đục lỗ chay. Khuyên ngài nên dùng AI tạo ra câu ví dụ ngữ cảnh để học hiệu quả hơn.</p>
-           </div>
+          <div
+            className="mt-8 flex flex-col items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={handleGenerateAICloze}
+              disabled={isGeneratingCloze}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600 shadow-md transition-all font-medium text-sm disabled:opacity-70 disabled:cursor-wait"
+            >
+              {isGeneratingCloze ? (
+                <RefreshCcw className="w-5 h-5 animate-spin" />
+              ) : (
+                <Sparkles className="w-5 h-5" />
+              )}
+              {isGeneratingCloze
+                ? "AI Đang xử lý..."
+                : "Agent 2: Sinh câu đục lỗ ngữ cảnh"}
+            </button>
+            <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500 max-w-xs text-center font-light">
+              Thẻ này hơi phức tạp để đục lỗ chay. Khuyên ngài nên dùng AI tạo
+              ra câu ví dụ ngữ cảnh để học hiệu quả hơn.
+            </p>
+          </div>
         )}
       </div>
     );
@@ -1495,12 +1651,11 @@ export default function StudyRoom() {
 
           try {
             localStorage.setItem(storageKey, JSON.stringify(weakIds));
-          } catch(e) {
+          } catch (e) {
             console.warn("Storage Quota Exceeded", e);
           }
           setWeakCardIds(weakIds);
         }
-
       }
 
       if (!isPinned) setDeepExplanation(null);
@@ -1743,13 +1898,23 @@ export default function StudyRoom() {
         const currentCards = data.cards || [];
         updatedDocCards = currentCards.map((c: any) =>
           c.id === currentCard.id
-            ? { ...c, front: editFront, back: editBack, example_sentence: editExampleSentence }
+            ? {
+                ...c,
+                front: editFront,
+                back: editBack,
+                example_sentence: editExampleSentence,
+              }
             : c,
         );
       } else {
         // Fallback for missing offline maps etc but this should mostly be exact match
         updatedDocCards = [
-          { ...currentCard, front: editFront, back: editBack, example_sentence: editExampleSentence },
+          {
+            ...currentCard,
+            front: editFront,
+            back: editBack,
+            example_sentence: editExampleSentence,
+          },
         ]; // dummy fallback
       }
 
@@ -1759,7 +1924,13 @@ export default function StudyRoom() {
       });
 
       // Update local state ONLY on success
-      store.updateCard(targetDeckId, currentCard.id, editFront, editBack, editExampleSentence);
+      store.updateCard(
+        targetDeckId,
+        currentCard.id,
+        editFront,
+        editBack,
+        editExampleSentence,
+      );
       currentCard.front = editFront;
       currentCard.back = editBack;
       currentCard.example_sentence = editExampleSentence;
@@ -1849,7 +2020,7 @@ export default function StudyRoom() {
   };
 
   const handleVirtualPlayCard = useCallback((c: Flashcard) => {
-    setStudyQueue(prevQueue => {
+    setStudyQueue((prevQueue) => {
       const indexInQueue = prevQueue.findIndex((qCard) => qCard.id === c.id);
       if (indexInQueue !== -1) {
         setCurrentIndex(indexInQueue);
@@ -1867,35 +2038,40 @@ export default function StudyRoom() {
       (c) =>
         (c.front || "").toLowerCase().includes(query) ||
         (c.back || "").toLowerCase().includes(query) ||
-        (c.wordForm || "").toLowerCase().includes(query)
+        (c.wordForm || "").toLowerCase().includes(query),
     );
   }, [deck?.cards, listSearchQuery]);
 
-  const handleSelectCardFromList = useCallback((card: Flashcard) => {
-    if (!deck) return;
-    
-    let targetQueue = studyQueue;
-    const indexInQueue = studyQueue.findIndex((qCard) => qCard.id === card.id);
-    
-    if (indexInQueue === -1) {
-      targetQueue = deck.cards || [];
-      setStudyQueue(targetQueue);
-      setStudyMode("all");
-      setFinished(false);
-      if (!isPinned) setDeepExplanation(null);
-      else setIsMinimized(true);
-    }
-    
-    const finalIndex = targetQueue.findIndex((qCard) => qCard.id === card.id);
-    if (finalIndex !== -1) {
-      setCurrentIndex(finalIndex);
-    }
-    setIsFlipped(false);
-    setIsListModalOpen(false);
-  }, [deck, studyQueue, isPinned]);
+  const handleSelectCardFromList = useCallback(
+    (card: Flashcard) => {
+      if (!deck) return;
+
+      let targetQueue = studyQueue;
+      const indexInQueue = studyQueue.findIndex(
+        (qCard) => qCard.id === card.id,
+      );
+
+      if (indexInQueue === -1) {
+        targetQueue = deck.cards || [];
+        setStudyQueue(targetQueue);
+        setStudyMode("all");
+        setFinished(false);
+        if (!isPinned) setDeepExplanation(null);
+        else setIsMinimized(true);
+      }
+
+      const finalIndex = targetQueue.findIndex((qCard) => qCard.id === card.id);
+      if (finalIndex !== -1) {
+        setCurrentIndex(finalIndex);
+      }
+      setIsFlipped(false);
+      setIsListModalOpen(false);
+    },
+    [deck, studyQueue, isPinned],
+  );
 
   const handleVirtualEditCard = useCallback((c: Flashcard) => {
-    setStudyQueue(prevQueue => {
+    setStudyQueue((prevQueue) => {
       const indexInQueue = prevQueue.findIndex((qCard) => qCard.id === c.id);
       if (indexInQueue !== -1) {
         setCurrentIndex(indexInQueue);
@@ -1909,9 +2085,12 @@ export default function StudyRoom() {
     window.scrollTo({ top: 300, behavior: "smooth" });
   }, []);
 
-  const handleVirtualDeleteCard = useCallback((c: Flashcard) => {
-    handleRemoveCard(c);
-  }, [handleRemoveCard]);
+  const handleVirtualDeleteCard = useCallback(
+    (c: Flashcard) => {
+      handleRemoveCard(c);
+    },
+    [handleRemoveCard],
+  );
 
   if (finished) {
     const percentage =
@@ -2480,8 +2659,13 @@ export default function StudyRoom() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-zinc-500 text-center max-w-md mx-auto p-4">
         <div className="text-4xl">🔒</div>
-        <div className="text-lg font-bold text-zinc-800 dark:text-zinc-100 font-display">Quyền truy cập bị từ chối</div>
-        <div className="text-sm text-zinc-500">Bộ học này là bộ thẻ cá nhân riêng tư. Chỉ người tạo mới được quyền truy cập học tập.</div>
+        <div className="text-lg font-bold text-zinc-800 dark:text-zinc-100 font-display">
+          Quyền truy cập bị từ chối
+        </div>
+        <div className="text-sm text-zinc-500">
+          Bộ học này là bộ thẻ cá nhân riêng tư. Chỉ người tạo mới được quyền
+          truy cập học tập.
+        </div>
         <button
           onClick={handleBack}
           className="mt-4 px-6 py-2.5 bg-gradient-to-r from-orange-500 to-orange-500 hover:from-orange-600 hover:to-orange-600 text-black font-extrabold rounded-xl transition border-none cursor-pointer"
@@ -2503,7 +2687,7 @@ export default function StudyRoom() {
   if (!deck)
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <div>Không tìm thấy bộ thẻ (ID: {deckId || 'undefined'}).</div>
+        <div>Không tìm thấy bộ thẻ (ID: {deckId || "undefined"}).</div>
         <button
           onClick={handleBack}
           className="px-6 py-2 rounded-lg bg-orange-500 text-black font-bold hover:bg-orange-600 transition border-none cursor-pointer"
@@ -2561,8 +2745,10 @@ export default function StudyRoom() {
 
               <button
                 onClick={() => {
-                   navigator.clipboard.writeText(window.location.href);
-                   toast("Đã copy link! Gửi cho bạn bè để cùng học set này nhé.");
+                  navigator.clipboard.writeText(window.location.href);
+                  toast(
+                    "Đã copy link! Gửi cho bạn bè để cùng học set này nhé.",
+                  );
                 }}
                 className="flex items-center gap-1.5 p-2 px-3 bg-zinc-200/60 dark:bg-zinc-800/50 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition text-xs font-bold"
                 title="Chia sẻ link"
@@ -2600,12 +2786,21 @@ export default function StudyRoom() {
                   "p-2 rounded-full transition flex items-center justify-center relative",
                   isOfflineSaved
                     ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 font-bold"
-                    : "bg-zinc-200/60 dark:bg-zinc-800/50 hover:bg-black/10 dark:hover:bg-white/10 text-zinc-600 dark:text-zinc-300"
+                    : "bg-zinc-200/60 dark:bg-zinc-800/50 hover:bg-black/10 dark:hover:bg-white/10 text-zinc-600 dark:text-zinc-300",
                 )}
-                title={isOfflineSaved ? "Xóa bản lưu ngoại tuyến" : "Tải xuống dùng khi ngoại tuyến"}
+                title={
+                  isOfflineSaved
+                    ? "Xóa bản lưu ngoại tuyến"
+                    : "Tải xuống dùng khi ngoại tuyến"
+                }
                 aria-label="Toggle Offline Mode"
               >
-                <div className={cn("w-1.5 h-1.5 rounded-full absolute top-0.5 right-0.5", isOfflineSaved ? "bg-emerald-500" : "bg-transparent")} />
+                <div
+                  className={cn(
+                    "w-1.5 h-1.5 rounded-full absolute top-0.5 right-0.5",
+                    isOfflineSaved ? "bg-emerald-500" : "bg-transparent",
+                  )}
+                />
                 <Network className="w-4 h-4" />
               </button>
               <button
@@ -2697,7 +2892,11 @@ export default function StudyRoom() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (window.confirm("Bạn có chắc chắn muốn học lại từ đầu bộ học này không?")) {
+                    if (
+                      window.confirm(
+                        "Bạn có chắc chắn muốn học lại từ đầu bộ học này không?",
+                      )
+                    ) {
                       setCurrentIndex(0);
                       if (deck) {
                         const progressKey = `study_progress_${user?.id || "guest"}_${deck.id}`;
@@ -2721,68 +2920,88 @@ export default function StudyRoom() {
             <motion.div
               className="w-full h-full transform-style-3d rounded-3xl"
               animate={{ rotateY: isFlipped ? 180 : 0 }}
-              transition={isFixLagEnabled ? { duration: 0 } : {
-                type: "spring",
-                stiffness: 220,
-                damping: 25,
-                mass: 1,
-              }}
+              transition={
+                isFixLagEnabled
+                  ? { duration: 0 }
+                  : {
+                      type: "spring",
+                      stiffness: 220,
+                      damping: 25,
+                      mass: 1,
+                    }
+              }
             >
               {/* Front */}
               <div className="absolute inset-0 backface-hidden bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 shadow-xl rounded-3xl text-center h-full overflow-y-auto w-full">
                 <div className="w-full min-h-full flex flex-col items-center justify-center p-8">
-                  {canEditDeck &&
-                    !isEditing && (
-                      <button
-                        onClick={handleEditOpen}
-                        className="absolute top-4 right-4 z-20 p-2 bg-zinc-300/60 dark:bg-zinc-800/80 rounded-full hover:bg-black/20 dark:hover:bg-white/20 transition"
-                      >
-                        <Edit3 className="w-5 h-5 text-blue-500" />
-                      </button>
-                    )}
+                  {canEditDeck && !isEditing && (
+                    <button
+                      onClick={handleEditOpen}
+                      className="absolute top-4 right-4 z-20 p-2 bg-zinc-300/60 dark:bg-zinc-800/80 rounded-full hover:bg-black/20 dark:hover:bg-white/20 transition"
+                    >
+                      <Edit3 className="w-5 h-5 text-blue-500" />
+                    </button>
+                  )}
                   {!isEditing ? (
                     <div className="relative flex flex-col items-center justify-center min-h-[60px] w-full px-8">
                       {(() => {
-                         let computedForm = currentCard?.wordForm;
-                         if (!computedForm) {
-                            const frontText = currentCard?.front || (currentCard as any)?.word || "";
-                            const check = detectLanguage(frontText);
-                            if (check.isAvailable && check.locale === "en-US") {
-                               const backText = currentCard?.back || (currentCard as any)?.meaning || "";
-                               const match = backText.match(/\((n|v|adj|adv|prep|conj|pron|idiom|phrasal verb)\)/i);
-                               if (match) {
-                                  computedForm = match[1];
-                               } else {
-                                  const tokens = frontText.trim().split(/\s+/);
-                                  if (tokens.length >= 3) computedForm = "idiomatic expression";
-                                  else if (tokens.length === 2) computedForm = "collocation";
-                                  else computedForm = "vocabulary";
-                               }
+                        let computedForm = currentCard?.wordForm;
+                        if (!computedForm) {
+                          const frontText =
+                            currentCard?.front ||
+                            (currentCard as any)?.word ||
+                            "";
+                          const check = detectLanguage(frontText);
+                          if (check.isAvailable && check.locale === "en-US") {
+                            const backText =
+                              currentCard?.back ||
+                              (currentCard as any)?.meaning ||
+                              "";
+                            const match = backText.match(
+                              /\((n|v|adj|adv|prep|conj|pron|idiom|phrasal verb)\)/i,
+                            );
+                            if (match) {
+                              computedForm = match[1];
+                            } else {
+                              const tokens = frontText.trim().split(/\s+/);
+                              if (tokens.length >= 3)
+                                computedForm = "idiomatic expression";
+                              else if (tokens.length === 2)
+                                computedForm = "collocation";
+                              else computedForm = "vocabulary";
                             }
-                         }
+                          }
+                        }
 
-                         if (!computedForm) return null;
+                        if (!computedForm) return null;
 
-                         return (
-                           <span
-                             className={cn(
-                               "text-[12px] uppercase font-bold tracking-wider mb-2 px-3 py-1 rounded shadow-sm",
-                               computedForm.toLowerCase().includes("noun") || computedForm.toLowerCase() === "n"
-                                 ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50"
-                                 : computedForm.toLowerCase().includes("verb") || computedForm.toLowerCase() === "v"
-                                 ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800/50"
-                                 : computedForm.toLowerCase().includes("adj")
-                                 ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800/50"
-                                 : computedForm.toLowerCase().includes("adv")
-                                 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50"
-                                 : computedForm.toLowerCase().includes("idiom") || computedForm.toLowerCase().includes("colloc")
-                                 ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800/50"
-                                 : "bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 border border-zinc-300 dark:border-zinc-700",
-                             )}
-                           >
-                             [{computedForm}]
-                           </span>
-                         );
+                        return (
+                          <span
+                            className={cn(
+                              "text-[12px] uppercase font-bold tracking-wider mb-2 px-3 py-1 rounded shadow-sm",
+                              computedForm.toLowerCase().includes("noun") ||
+                                computedForm.toLowerCase() === "n"
+                                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50"
+                                : computedForm.toLowerCase().includes("verb") ||
+                                    computedForm.toLowerCase() === "v"
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800/50"
+                                  : computedForm.toLowerCase().includes("adj")
+                                    ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800/50"
+                                    : computedForm.toLowerCase().includes("adv")
+                                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50"
+                                      : computedForm
+                                            .toLowerCase()
+                                            .includes("idiom") ||
+                                          computedForm
+                                            .toLowerCase()
+                                            .includes("colloc")
+                                        ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800/50"
+                                        : "bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 border border-zinc-300 dark:border-zinc-700",
+                            )}
+                          >
+                            [{computedForm}]
+                          </span>
+                        );
                       })()}
                       {isClozeMode ? (
                         <div className="py-4 w-full flex justify-center items-center">
@@ -2801,7 +3020,10 @@ export default function StudyRoom() {
                             </ReactMarkdown>
                           </h2>
                           {(() => {
-                            const frontText = currentCard?.front || (currentCard as any)?.word || "";
+                            const frontText =
+                              currentCard?.front ||
+                              (currentCard as any)?.word ||
+                              "";
                             const check = detectLanguage(frontText);
                             if (!check.isAvailable) return null;
                             return (
@@ -2831,9 +3053,14 @@ export default function StudyRoom() {
                             <AlertCircle className="w-8 h-8" />
                           </div>
                           <div className="space-y-1">
-                            <h4 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Xác nhận xóa thẻ học</h4>
+                            <h4 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                              Xác nhận xóa thẻ học
+                            </h4>
                             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                              Bạn có chắc chắn muốn xóa? Nút xác nhận sẽ mở sau <span className="font-extrabold text-red-500 text-sm animate-pulse">{deleteCountdown}s</span>
+                              Bạn có chắc chắn muốn xóa? Nút xác nhận sẽ mở sau{" "}
+                              <span className="font-extrabold text-red-500 text-sm animate-pulse">
+                                {deleteCountdown}s
+                              </span>
                             </p>
                           </div>
                           <div className="flex gap-3 w-full">
@@ -2851,9 +3078,9 @@ export default function StudyRoom() {
                               }}
                               className={cn(
                                 "flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition",
-                                deleteCountdown > 0 
-                                  ? "bg-red-500/30 text-red-500/50 cursor-not-allowed" 
-                                  : "bg-red-600 hover:bg-red-700 text-white cursor-pointer"
+                                deleteCountdown > 0
+                                  ? "bg-red-500/30 text-red-500/50 cursor-not-allowed"
+                                  : "bg-red-600 hover:bg-red-700 text-white cursor-pointer",
                               )}
                             >
                               Xác nhận xóa
@@ -2879,7 +3106,9 @@ export default function StudyRoom() {
                           <textarea
                             className="w-full p-3 rounded-xl bg-zinc-200/60 dark:bg-zinc-800/50 border border-orange-600/20 dark:border-orange-500/30 resize-none outline-none focus:ring-2 focus:ring-blue-500 transition text-zinc-900 dark:text-zinc-100 text-xs text-center animate-in slide-in-from-top-2 duration-200"
                             value={editExampleSentence}
-                            onChange={(e) => setEditExampleSentence(e.target.value)}
+                            onChange={(e) =>
+                              setEditExampleSentence(e.target.value)
+                            }
                             placeholder="Câu ví dụ đục lỗ. Đặt từ cần đố trong ngoặc vuông, ví dụ: 'To [debunk] a myth is to prove it wrong.'..."
                             rows={2}
                           />
@@ -2906,15 +3135,14 @@ export default function StudyRoom() {
               {/* Back */}
               <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 shadow-xl rounded-3xl text-center h-full overflow-y-auto w-full">
                 <div className="w-full min-h-full flex flex-col items-center justify-center p-8 text-lg opacity-90">
-                  {canEditDeck &&
-                    !isEditing && (
-                      <button
-                        onClick={handleEditOpen}
-                        className="absolute top-4 right-4 z-20 p-2 bg-zinc-300/60 dark:bg-zinc-800/80 rounded-full hover:bg-black/20 dark:hover:bg-white/20 transition"
-                      >
-                        <Edit3 className="w-5 h-5 text-blue-500" />
-                      </button>
-                    )}
+                  {canEditDeck && !isEditing && (
+                    <button
+                      onClick={handleEditOpen}
+                      className="absolute top-4 right-4 z-20 p-2 bg-zinc-300/60 dark:bg-zinc-800/80 rounded-full hover:bg-black/20 dark:hover:bg-white/20 transition"
+                    >
+                      <Edit3 className="w-5 h-5 text-blue-500" />
+                    </button>
+                  )}
                   {!isEditing ? (
                     <div className="w-full flex-1 flex flex-col sm:flex-row items-center justify-center gap-4 py-4 relative">
                       <div className="max-w-[85%] text-center">
@@ -2927,7 +3155,10 @@ export default function StudyRoom() {
                         />
                       </div>
                       {(() => {
-                        const backText = currentCard?.back || (currentCard as any)?.meaning || "";
+                        const backText =
+                          currentCard?.back ||
+                          (currentCard as any)?.meaning ||
+                          "";
                         const check = detectLanguage(backText);
                         if (!check.isAvailable) return null;
                         return (
@@ -2955,9 +3186,14 @@ export default function StudyRoom() {
                             <AlertCircle className="w-8 h-8" />
                           </div>
                           <div className="space-y-1">
-                            <h4 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Xác nhận xóa thẻ học</h4>
+                            <h4 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                              Xác nhận xóa thẻ học
+                            </h4>
                             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                              Bạn có chắc chắn muốn xóa? Nút xác nhận sẽ mở sau <span className="font-extrabold text-red-500 text-sm animate-pulse">{deleteCountdown}s</span>
+                              Bạn có chắc chắn muốn xóa? Nút xác nhận sẽ mở sau{" "}
+                              <span className="font-extrabold text-red-500 text-sm animate-pulse">
+                                {deleteCountdown}s
+                              </span>
                             </p>
                           </div>
                           <div className="flex gap-3 w-full">
@@ -2975,9 +3211,9 @@ export default function StudyRoom() {
                               }}
                               className={cn(
                                 "flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition",
-                                deleteCountdown > 0 
-                                  ? "bg-red-500/30 text-red-500/50 cursor-not-allowed" 
-                                  : "bg-red-600 hover:bg-red-700 text-white cursor-pointer"
+                                deleteCountdown > 0
+                                  ? "bg-red-500/30 text-red-500/50 cursor-not-allowed"
+                                  : "bg-red-600 hover:bg-red-700 text-white cursor-pointer",
                               )}
                             >
                               Xác nhận xóa
@@ -3003,7 +3239,9 @@ export default function StudyRoom() {
                           <textarea
                             className="w-full p-3 rounded-xl bg-zinc-200/60 dark:bg-zinc-800/50 border border-orange-600/20 dark:border-orange-500/30 resize-none outline-none focus:ring-2 focus:ring-blue-500 transition text-zinc-900 dark:text-zinc-100 text-xs animate-in slide-in-from-top-2 duration-200"
                             value={editExampleSentence}
-                            onChange={(e) => setEditExampleSentence(e.target.value)}
+                            onChange={(e) =>
+                              setEditExampleSentence(e.target.value)
+                            }
                             placeholder="Câu ví dụ đục lỗ. Đặt từ cần đố trong ngoặc vuông, ví dụ: 'To [debunk] a myth is to prove it wrong.'..."
                             rows={2}
                           />
@@ -3050,7 +3288,9 @@ export default function StudyRoom() {
                   </button>
                   <span className="text-[10px] uppercase font-bold text-zinc-400 dark:text-zinc-500 flex flex-col items-center tracking-wider">
                     <span>Lùi thẻ</span>
-                    <span className="text-[8px] opacity-70 font-mono">← chưa lật</span>
+                    <span className="text-[8px] opacity-70 font-mono">
+                      ← chưa lật
+                    </span>
                   </span>
                 </div>
 
@@ -3120,7 +3360,9 @@ export default function StudyRoom() {
                   </button>
                   <span className="text-[10px] uppercase font-bold text-zinc-400 dark:text-zinc-500 flex flex-col items-center tracking-wider">
                     <span>Kế tiếp</span>
-                    <span className="text-[8px] opacity-70 font-mono">→ chưa lật</span>
+                    <span className="text-[8px] opacity-70 font-mono">
+                      → chưa lật
+                    </span>
                   </span>
                 </div>
               </div>
@@ -3383,7 +3625,9 @@ export default function StudyRoom() {
                             }}
                             className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-black border border-zinc-300 dark:border-zinc-700 outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-zinc-50 dark:bg-zinc-900"
                           >
-                            <option value="">-- Chọn phân loại hiện có --</option>
+                            <option value="">
+                              -- Chọn phân loại hiện có --
+                            </option>
                             {existingSubjects.map((s) => (
                               <option key={s} value={s}>
                                 {s}
@@ -3422,7 +3666,9 @@ export default function StudyRoom() {
                             type="button"
                             onClick={() => {
                               setIsCreatingNewSubjectDeck(false);
-                              setDeckEditSubject(existingSubjects[0] || "general");
+                              setDeckEditSubject(
+                                existingSubjects[0] || "general",
+                              );
                             }}
                             className="px-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 text-zinc-800 dark:text-zinc-200 rounded-lg text-xs font-bold shrink-0"
                           >
@@ -3482,20 +3728,24 @@ export default function StudyRoom() {
                     Đã lưu {lastNotesSavedTime}
                   </span>
                 ) : (
-                  <span className="text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full font-bold">Sẵn sàng</span>
+                  <span className="text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full font-bold">
+                    Sẵn sàng
+                  </span>
                 )}
               </div>
             </div>
-            
+
             <textarea
               value={scratchpadText}
               onChange={(e) => setScratchpadText(e.target.value)}
               placeholder="✍️ Nhập nhanh kiến thức trọng tâm, mẹo nhớ, từ khóa vào đây để học lâu nhớ sâu..."
               className="w-full h-44 p-3 text-xs md:text-sm bg-zinc-50/50 dark:bg-zinc-950/40 border border-zinc-250 dark:border-zinc-800/80 rounded-xl font-sans resize-none outline-none focus:ring-2 focus:ring-orange-500/40 transition-all text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 leading-relaxed"
             />
-            
+
             <div className="text-[9px] opacity-60 flex justify-between items-center px-1 font-mono">
-              <span className="flex items-center gap-1">☁️ Tự động đồng bộ lên mây</span>
+              <span className="flex items-center gap-1">
+                ☁️ Tự động đồng bộ lên mây
+              </span>
               <span>{scratchpadText.length} ký tự</span>
             </div>
           </div>
@@ -3516,10 +3766,15 @@ export default function StudyRoom() {
             <div className="flex justify-between items-start border-b border-zinc-200 dark:border-zinc-800 pb-4">
               <div className="space-y-1">
                 <h3 className="text-xl font-bold font-display text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
-                  <Eye className="w-5 h-5 text-orange-500 animate-pulse" /> Danh sách thẻ học
+                  <Eye className="w-5 h-5 text-orange-500 animate-pulse" /> Danh
+                  sách thẻ học
                 </h3>
                 <p className="text-xs opacity-60">
-                  Bộ bài: <span className="font-bold">{deck?.title || "Chưa đặt tên"}</span> • Tổng số {deck?.cards?.length || 0} thẻ
+                  Bộ bài:{" "}
+                  <span className="font-bold">
+                    {deck?.title || "Chưa đặt tên"}
+                  </span>{" "}
+                  • Tổng số {deck?.cards?.length || 0} thẻ
                 </p>
               </div>
               <button
@@ -3541,7 +3796,9 @@ export default function StudyRoom() {
                   onChange={(e) => setListSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 outline-none focus:ring-2 focus:ring-orange-500 dark:bg-zinc-800 text-sm text-zinc-850 dark:text-zinc-200"
                 />
-                <span className="absolute left-3.5 top-3.5 opacity-50 text-xs">🔍</span>
+                <span className="absolute left-3.5 top-3.5 opacity-50 text-xs">
+                  🔍
+                </span>
                 {listSearchQuery && (
                   <button
                     onClick={() => setListSearchQuery("")}
@@ -3551,7 +3808,7 @@ export default function StudyRoom() {
                   </button>
                 )}
               </div>
-              
+
               <div className="text-xs font-mono opacity-50 px-1 self-end sm:self-auto">
                 Tìm thấy {filteredCards.length} thẻ khớp
               </div>
@@ -3561,7 +3818,9 @@ export default function StudyRoom() {
             <div className="flex-1 overflow-y-auto mt-4 pr-1 space-y-3 scroll-smooth">
               {filteredCards.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <p className="text-sm opacity-60">Không tìm thấy thẻ học nào khớp với từ khóa của ngài.</p>
+                  <p className="text-sm opacity-60">
+                    Không tìm thấy thẻ học nào khớp với từ khóa của ngài.
+                  </p>
                   <button
                     onClick={() => setListSearchQuery("")}
                     className="mt-2 text-xs text-orange-500 hover:underline font-bold"
@@ -3571,10 +3830,11 @@ export default function StudyRoom() {
                 </div>
               ) : (
                 filteredCards.map((card, idx) => {
-                  const originalIndex = deck?.cards.findIndex((c) => c.id === card.id) ?? idx;
+                  const originalIndex =
+                    deck?.cards.findIndex((c) => c.id === card.id) ?? idx;
                   return (
                     <div
-                      key={card.id || "card"}
+                      key={card.id ? `${card.id}-${idx}` : `card-${idx}`}
                       className="p-4 bg-zinc-100/60 dark:bg-zinc-800/40 rounded-xl border border-zinc-200/40 dark:border-zinc-700/20 hover:border-orange-500/30 transition flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
                     >
                       <div className="flex-1 space-y-2 min-w-0 w-full">
@@ -3590,17 +3850,27 @@ export default function StudyRoom() {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="p-3 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-250 dark:border-zinc-800/80 text-zinc-850 dark:text-zinc-200 font-sans min-h-[50px] flex flex-col justify-center">
-                            <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 block mb-1 uppercase tracking-wider">Mặt trước (Front)</span>
+                            <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 block mb-1 uppercase tracking-wider">
+                              Mặt trước (Front)
+                            </span>
                             <div className="text-sm select-text break-words">
-                              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                              <ReactMarkdown
+                                remarkPlugins={[remarkMath]}
+                                rehypePlugins={[rehypeKatex]}
+                              >
                                 {card.front || ""}
                               </ReactMarkdown>
                             </div>
                           </div>
                           <div className="p-3 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-250 dark:border-zinc-800/80 text-zinc-850 dark:text-zinc-200 font-sans min-h-[50px] flex flex-col justify-center">
-                            <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 block mb-1 uppercase tracking-wider">Mặt sau (Back)</span>
+                            <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 block mb-1 uppercase tracking-wider">
+                              Mặt sau (Back)
+                            </span>
                             <div className="text-sm select-text break-words">
-                              <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                              <ReactMarkdown
+                                remarkPlugins={[remarkMath]}
+                                rehypePlugins={[rehypeKatex]}
+                              >
                                 {card.back || ""}
                               </ReactMarkdown>
                             </div>
@@ -3620,7 +3890,7 @@ export default function StudyRoom() {
                 })
               )}
             </div>
-            
+
             {/* Footer */}
             <div className="border-t border-zinc-200 dark:border-zinc-800 pt-4 flex justify-between items-center text-xs opacity-50">
               <span>Bấm nút "Học thẻ này" để bắt đầu ôn từ thẻ đó</span>
