@@ -7557,9 +7557,9 @@ export default function StudentDashboard() {
 
                 <div className="space-y-4 max-h-[460px] overflow-y-auto pr-2">
                   {user && store.getReviewHistory(user.id).length > 0 ? (
-                    (store.getReviewHistory(user.id) || []).map((record) => (
+                    (store.getReviewHistory(user.id) || []).map((record, index) => (
                       <motion.div
-                        key={record.id}
+                        key={`${record.id || "record"}-${index}`}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         className="stone-carved card-3d p-4 rounded-xl flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center"

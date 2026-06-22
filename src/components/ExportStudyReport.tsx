@@ -624,13 +624,13 @@ export const ExportStudyReport: React.FC<ExportStudyReportProps> = ({
                       <BookOpen className="w-4 h-4" /> Thống kê bộ bài ({totalDecks} bộ bài)
                     </div>
                     <div className="grid sm:grid-cols-2 gap-3">
-                      {decks.map(d => {
+                      {decks.map((d, idx) => {
                         const dCards = d.cards || [];
                         const dMastery = dCards.length > 0
                           ? Math.round(dCards.reduce((s, c) => s + (c.mastery || 0), 0) / dCards.length)
                           : 0;
                         return (
-                          <div key={d.id} className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex flex-col justify-between">
+                          <div key={`${d.id || "deck"}-${idx}`} className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex flex-col justify-between">
                             <div className="flex justify-between items-start">
                               <span className="font-bold text-xs font-sans text-zinc-800 dark:text-zinc-200 break-all">{d.title}</span>
                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${dMastery >= 75 ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-orange-500/10 text-orange-600'}`}>

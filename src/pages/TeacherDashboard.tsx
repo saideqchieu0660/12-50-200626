@@ -2312,7 +2312,7 @@ export default function TeacherDashboard() {
                 {topWeakest.length > 0 ? (
                   topWeakest.map((wc, i) => (
                     <div
-                      key={wc.id}
+                      key={`${wc.id || "wc"}-${i}`}
                       className="p-4 bg-red-500/5 dark:bg-red-500/10 border border-red-500/20 rounded-xl relative overflow-hidden group"
                     >
                       <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">

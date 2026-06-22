@@ -90,9 +90,9 @@ export const CustomDeckSelect: React.FC<CustomDeckSelectProps> = ({ decks, value
                
                {expandedSubject === subject && (
                  <div className="bg-white dark:bg-zinc-950 animate-in slide-in-from-top-1 fade-in duration-200">
-                   {subjectDecks.map((d) => (
+                   {subjectDecks.map((d, idx) => (
                      <button
-                       key={d.id}
+                       key={`${d.id || "deck"}-${idx}`}
                        type="button"
                        onClick={() => { onChange(d.id); setIsOpen(false); }}
                        className={cn("w-full text-left pl-7 pr-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition flex items-center justify-between text-zinc-800 dark:text-zinc-200", value === d.id && "bg-zinc-50 dark:bg-zinc-900 font-bold")}

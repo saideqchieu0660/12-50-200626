@@ -545,13 +545,13 @@ function handleGeminiError(state: KeyState, err: any) {
   updateKeyMetrics(state.index, "error");
   const msg = err?.message || err?.toString() || "";
   
-  const isHardQuotaExceeded = msg.includes("quota") || msg.toLowerCase().includes("quota exceeded") || msg.toLowerCase().includes("exceeded your current quota") || msg.toLowerCase().includes("please check your plan and billing") || err?.status === 402;
+  const isHardQuotaExceeded = msg.includes("quota") || msg.toLowerCase().includes("quota exceeded") || msg.toLowerCase().includes("exceeded your current quota") || msg.toLowerCase().includes("please check your plan and billing") || err?.status === 402 || err?.status === 403 || msg.includes("PERMISSION_DENIED");
   
   if (isHardQuotaExceeded) {
     state.status = "quota_exceeded";
     addRotationLog({
       toKeyIndex: state.index,
-      reason: `Hard Quota/Billing Exceeded (Permanently disabled). Error: ${msg.substring(0, 100)}`
+      reason: `Hard Quota/Billing/Permission Denied (Permanently disabled). Error: ${msg.substring(0, 100)}`
     });
   } else if (err?.status === 429 || msg.includes("429") || msg.toLowerCase().includes("too many requests") || msg.toLowerCase().includes("limit exceed")) {
     state.status = "rate_limited";
@@ -652,12 +652,12 @@ async function executeQueueItemWithRetry(item: GeminiQueueItem<any>) {
       handleGeminiError(state, error);
 
       const msg = error?.message || error?.toString() || "";
-      const isRetryable = error?.status === 429 || msg.includes("429") || msg.includes("quota") || msg.toLowerCase().includes("too many requests") || msg.toLowerCase().includes("exhausted") || msg.toLowerCase().includes("limit exceed") || error?.status === 503 || msg.includes("503") || msg.includes("high demand") || msg.includes("overloaded");
+      const isRetryable = error?.status === 429 || msg.includes("429") || msg.includes("quota") || msg.toLowerCase().includes("too many requests") || msg.toLowerCase().includes("exhausted") || msg.toLowerCase().includes("limit exceed") || error?.status === 503 || msg.includes("503") || msg.includes("high demand") || msg.includes("overloaded") || error?.status === 403 || msg.includes("PERMISSION_DENIED");
 
       if (isRetryable && item.attempts < maxAttempts) {
         item.attempts++;
         
-        console.warn(`[Gemini Queue] Key #${state.index} dội lỗi Rate Limit (429/503). Chuyển sang key khác và thử lại ngay lập tức... (${item.attempts}/${maxAttempts})`);
+        console.warn(`[Gemini Queue] Key #${state.index} dội lỗi Rate Limit / Quota (429/503/403). Chuyển sang key khác và thử lại ngay lập tức... (${item.attempts}/${maxAttempts})`);
         
         addRotationLog({
           fromKeyIndex: state.index,
@@ -1414,7 +1414,7 @@ Bọc công thức Toán/Lý/Hóa bằng LaTeX (dấu $ hoặc $$). Chỉ trả 
         });
       } catch (geminiError: any) {
         console.warn("Agent 2 Gemini Failed, falling back to OpenRouter:", geminiError.message);
-        if (openRouterKeyStates.length > 0) {
+        if (isOpenRouterEnabled && openRouterKeyStates.length > 0) {
            const { key, state } = getOpenRouterKey();
            const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
              method: "POST",
@@ -1866,17 +1866,50 @@ KHÔNG sử dụng Markdown code block. TRẢ VỀ ĐÚNG MỘT OBJECT JSON DUY 
   ]
 }`;
 
-      const responseText = await executeGeminiWithRetry(async (ai) => {
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-              responseMimeType: "application/json",
-              temperature: 0.3
-            }
-          });
-          return response.text;
-      });
+      let responseText = "";
+      try {
+        responseText = await executeGeminiWithRetry(async (ai) => {
+            const response = await ai.models.generateContent({
+              model: "gemini-2.5-flash",
+              contents: prompt,
+              config: {
+                responseMimeType: "application/json",
+                temperature: 0.3
+              }
+            });
+            return response.text;
+        });
+      } catch (geminiError: any) {
+        console.warn("Agent Lesson Plan Gemini Failed, falling back to OpenRouter:", geminiError.message);
+        if (isOpenRouterEnabled && openRouterKeyStates.length > 0) {
+           const { key, state } = getOpenRouterKey();
+           const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+             method: "POST",
+             headers: {
+               "Content-Type": "application/json",
+               "Authorization": `Bearer ${key}`,
+               "HTTP-Referer": "http://localhost:3000",
+               "X-Title": "Henosis Learning App"
+             },
+             body: JSON.stringify({
+               model: "google/gemini-2.5-flash:free",
+               messages: [{ role: "user", content: prompt }],
+               temperature: 0.3,
+               response_format: { type: "json_object" }
+             })
+           });
+           
+           if (!openRouterRes.ok) throw new Error("OpenRouter Fallback Failed: " + await openRouterRes.text());
+           const data = await openRouterRes.json();
+           responseText = data.choices[0]?.message?.content || "";
+           
+           state.usageCount++;
+           state.lastUsed = new Date();
+           updateKeyMetrics(state.index, "usage");
+        } else {
+           throw geminiError;
+        }
+      }
       
       res.json({ result: responseText });
     } catch (error: any) {
@@ -2022,7 +2055,7 @@ ${conciseModeGuidance}`;
               });
             } catch (geminiError: any) {
               console.warn("Agent 3 Quiz Gemini Failed, falling back to OpenRouter:", geminiError.message);
-              if (openRouterKeyStates.length > 0) {
+              if (isOpenRouterEnabled && openRouterKeyStates.length > 0) {
                  const { key, state } = getOpenRouterKey();
                  const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                    method: "POST",
@@ -2128,7 +2161,7 @@ ${reminderSuffix}`;
          });
       } catch (geminiError: any) {
          console.warn("Agent 3 Chat Gemini Failed, falling back to OpenRouter:", geminiError.message);
-         if (openRouterKeyStates.length > 0) {
+         if (isOpenRouterEnabled && openRouterKeyStates.length > 0) {
             const { key, state } = getOpenRouterKey();
             const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
               method: "POST",
