@@ -362,7 +362,7 @@ export async function syncUserToFirebase() {
       }
       
       const { auth } = await import('./firebase');
-      if (auth.currentUser?.isAnonymous && currentUser.points === 0) return; // Do not sync zero point anonymous users
+      if (auth.currentUser?.isAnonymous || currentUser.isAnonymous || !currentUser.email) return; // Never sync anonymous users
       
       const payload = {
         name: currentUser.name,
@@ -423,9 +423,9 @@ export const store = {
        }
        
        if (cachedU && cachedU.role) {
-           u = { ...cachedU, id: firebaseUser.uid, name };
+           u = { ...cachedU, id: firebaseUser.uid, name, isAnonymous: firebaseUser.isAnonymous || false, email: firebaseUser.email || "" };
        } else {
-           u = { id: firebaseUser.uid, name, role: "student", points: 0, streak: 1, lastActiveDate: new Date().toISOString().split('T')[0] };
+           u = { id: firebaseUser.uid, name, role: "student", points: 0, streak: 1, lastActiveDate: new Date().toISOString().split('T')[0], isAnonymous: firebaseUser.isAnonymous || false, email: firebaseUser.email || "" };
        }
        users.push(u);
     }

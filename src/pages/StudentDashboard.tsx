@@ -1242,6 +1242,8 @@ export default function StudentDashboard() {
             const isValidUser =
               u.status !== "disabled" &&
               u.isAnonymous !== true &&
+              !!u.email && u.email.trim() !== "" &&
+              !u.email?.includes("anonymous@local") &&
               u.name !== "Guest Student";
             const hasPoints = (u.points || 0) > 0;
             // Admins/Teachers can be shown always, students must have > 0 points
@@ -1277,7 +1279,10 @@ export default function StudentDashboard() {
                 roleLower,
               );
               const isValidUser =
-                u.isAnonymous !== true && u.name !== "Guest Student";
+                u.isAnonymous !== true &&
+                !!u.email && u.email.trim() !== "" &&
+                !u.email?.includes("anonymous@local") &&
+                u.name !== "Guest Student";
               const hasPoints = (u.points || 0) > 0;
               return (
                 isTargetRole &&

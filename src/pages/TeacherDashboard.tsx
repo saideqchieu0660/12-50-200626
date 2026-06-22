@@ -747,6 +747,7 @@ export default function TeacherDashboard() {
           (u) =>
             u.status !== "disabled" &&
             u.isAnonymous !== true &&
+            !!u.email && u.email.trim() !== "" &&
             !u.email?.includes("anonymous@local") &&
             u.name !== "Guest Student",
         )
@@ -757,6 +758,7 @@ export default function TeacherDashboard() {
             .filter(
               (u) =>
                 u.isAnonymous !== true &&
+                !!u.email && u.email.trim() !== "" &&
                 !u.email?.includes("anonymous@local") &&
                 u.name !== "Guest Student",
             );
@@ -1325,7 +1327,8 @@ export default function TeacherDashboard() {
                     {dbUsers
                       .filter(
                         (u) =>
-                          !u.isAnonymous &&
+                          u.isAnonymous !== true &&
+                          !!u.email && u.email.trim() !== "" &&
                           !(u.email || "").includes("anonymous@local") &&
                           u.name &&
                           u.name.trim() !== "",

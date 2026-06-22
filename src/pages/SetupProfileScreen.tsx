@@ -171,14 +171,16 @@ export default function SetupProfileScreen() {
           } catch(e) {}
       }
 
-      await dbService.updateUserProfile(user.uid, {
-        name: username.trim(),
-        role: role,
-        email: user.email || "",
-        isPro: isPro,
-        isSchoolLover: isPro,
-        photoURL: photoUrl || ""
-      });
+      if (!user.isAnonymous && user.email) {
+        await dbService.updateUserProfile(user.uid, {
+          name: username.trim(),
+          role: role,
+          email: user.email || "",
+          isPro: isPro,
+          isSchoolLover: isPro,
+          photoURL: photoUrl || ""
+        });
+      }
 
       const profile = await dbService.getUserProfile(user.uid);
       const currentUser = store.getCurrentUser();
