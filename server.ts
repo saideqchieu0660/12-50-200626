@@ -2723,37 +2723,70 @@ ${reminderSuffix}`;
       // 1. Fetch all Firestore user profiles from users collection
       const usersSnapshot = await db.collection("users").get();
       const firestoreUserIds: string[] = [];
+      const firestoreEmptyAnonymousDocs: string[] = [];
+
       usersSnapshot.forEach(docSnap => {
-        firestoreUserIds.push(docSnap.id);
+        const uid = docSnap.id;
+        firestoreUserIds.push(uid);
+        
+        const data = docSnap.data();
+        if (data.isAnonymous) {
+             const points = data.points || 0;
+             const streak = data.streak || 0;
+             const level = data.level || 1;
+             // Define 'empty dataset' heuristics
+             if (points === 0 && streak === 0 && level <= 1) {
+                 firestoreEmptyAnonymousDocs.push(uid);
+             }
+        }
       });
 
-      if (firestoreUserIds.length === 0) {
-        return res.json({ success: true, deletedCount: 0, message: "Không tìm thấy người dùng nào trong Firestore." });
-      }
-
       // 2. Fetch all Firebase Auth users to do a set comparison
-      const authUserIds = new Set<string>();
+      const authUserRecords = new Map<string, any>();
       let nextPageToken: string | undefined = undefined;
       do {
         const listUsersResult = await auth.listUsers(1000, nextPageToken);
         listUsersResult.users.forEach(userRecord => {
-          authUserIds.add(userRecord.uid);
+          authUserRecords.set(userRecord.uid, userRecord);
         });
         nextPageToken = listUsersResult.pageToken;
       } while (nextPageToken);
 
+      const authUserIds = new Set(authUserRecords.keys());
+
       // 3. Find UIDs that exist in Firestore but NOT in Firebase Auth
       const ghostUserIds = firestoreUserIds.filter(uid => !authUserIds.has(uid));
 
-      if (ghostUserIds.length === 0) {
-        return res.json({ success: true, deletedCount: 0, message: "Tất cả tài khoản trong dữ liệu đều khớp với Firebase Authentication." });
+      // 3b. Find Empty Anonymous accounts to prune (Garbage Collection)
+      const uidsToDeleteFromAuth = firestoreEmptyAnonymousDocs.filter(uid => {
+          const userRecord = authUserRecords.get(uid);
+          return userRecord && (!userRecord.providerData || userRecord.providerData.length === 0);
+      });
+
+      const uidsToDeleteFromFirestore = [...new Set([...ghostUserIds, ...uidsToDeleteFromAuth])];
+
+      if (uidsToDeleteFromFirestore.length === 0) {
+        return res.json({ success: true, deletedCount: 0, message: "Hệ thống sạch sẽ, không có rác hay tài khoản lỗi cần dọn dẹp." });
       }
 
-      // 4. Batch delete ghost users from Firestore to ensure clean synchronization
+      // 4. Batch delete empty anonymous accounts from Firebase Auth
+      if (uidsToDeleteFromAuth.length > 0) {
+         try {
+             // We can use deleteUsers for batch deletion up to 1000 at a time
+             for (let i = 0; i < uidsToDeleteFromAuth.length; i += 1000) {
+                 const chunk = uidsToDeleteFromAuth.slice(i, i + 1000);
+                 await auth.deleteUsers(chunk);
+             }
+         } catch (authDeleteErr) {
+             console.error("Lỗi khi xóa Auth users:", authDeleteErr);
+         }
+      }
+
+      // 5. Batch delete from Firestore to ensure clean synchronization
       const batchSize = 100;
       let deletedCount = 0;
-      for (let i = 0; i < ghostUserIds.length; i += batchSize) {
-        const chunk = ghostUserIds.slice(i, i + batchSize);
+      for (let i = 0; i < uidsToDeleteFromFirestore.length; i += batchSize) {
+        const chunk = uidsToDeleteFromFirestore.slice(i, i + batchSize);
         const batch = db.batch();
         for (const uid of chunk) {
           const userDocRef = db.collection("users").doc(uid);
@@ -2767,7 +2800,8 @@ ${reminderSuffix}`;
         success: true,
         deletedCount,
         ghostUserIds,
-        message: `Đã dọn dẹp thành công ${deletedCount} tài khoản đã được xóa trên Firebase Authentication khỏi Firestore.`
+        prunedAuthIds: uidsToDeleteFromAuth,
+        message: `Đã dọn dẹp thành công ${deletedCount} tài khoản (bao gồm ${ghostUserIds.length} tài khoản ma và ${uidsToDeleteFromAuth.length} tài khoản khách rác vô dụng) khỏi hệ thống.`
       });
 
     } catch (error: any) {

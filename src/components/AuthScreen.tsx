@@ -247,6 +247,8 @@ export default function AuthScreen() {
              userCredential = await linkWithPopup(authCurrentUser, provider);
          } catch (e: any) {
              if (e.code === 'auth/credential-already-in-use' || e.code === 'auth/email-already-in-use') {
+                 console.warn("Tài khoản đã tồn tại, tiến hành đăng nhập đè...");
+                 alert("Tài khoản này đã được liên kết trước đó. Đang tải dữ liệu đám mây của bạn (Dữ liệu khách tạm thời sẽ bị hủy).");
                  userCredential = await signInWithPopup(auth, provider);
              } else {
                  throw e;
