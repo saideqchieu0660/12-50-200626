@@ -851,7 +851,7 @@ export default function Agent3Widget() {
                           if (matched.length === 0) {
                             return <div className="text-center py-4 text-zinc-400 text-[11px]">Không tìm thấy bộ thẻ nào khớp với từ khoá 😢</div>;
                           }
-                          return matched.map(set => (
+                          return matched.map((set, index) => (
                             <button
                               key={`${set.id || "set"}-${index}`}
                               type="button"
@@ -881,7 +881,7 @@ export default function Agent3Widget() {
                                 <span>Chuyên mục: {selectedCategory}</span>
                                 <button type="button" onClick={() => setSelectedCategory(null)} className="text-orange-500 hover:underline cursor-pointer">📂Xem các chủ đề khác</button>
                               </div>
-                              {categorySets.map(set => (
+                              {categorySets.map((set, index) => (
                                 <button
                                   key={`${set.id || "set"}-${index}`}
                                   type="button"
@@ -1261,7 +1261,7 @@ const MermaidRenderer = ({ code, onAddCard }: { code: string; onAddCard: (text: 
   };
 
   // Render các node lồng nhau đẹp mắt của mindmap
-  const renderInteractiveNode = (node: MindmapNode, depth = 0): React.ReactNode => {
+  const renderInteractiveNode = (node: MindmapNode, index: number = 0, depth = 0): React.ReactNode => {
     const hasChildren = node.children && node.children.length > 0;
     
     const shapeClasses = cn(
@@ -1274,7 +1274,7 @@ const MermaidRenderer = ({ code, onAddCard }: { code: string; onAddCard: (text: 
     );
 
     return (
-      <div key={`${node.id || "node"}-${index}`} className="flex flex-col items-start pl-4 border-l border-zinc-200 dark:border-zinc-800/80 my-1.5 py-1 relative w-full">
+      <div key={`${node.id || "node"}-${index}-${depth}`} className="flex flex-col items-start pl-4 border-l border-zinc-200 dark:border-zinc-800/80 my-1.5 py-1 relative w-full">
         <div className="absolute left-0 top-[1.1rem] w-3 border-t border-zinc-200 dark:border-zinc-800/80" />
         
         <div className="flex items-center gap-1.5 relative z-10 max-w-full group/node">
@@ -1293,7 +1293,7 @@ const MermaidRenderer = ({ code, onAddCard }: { code: string; onAddCard: (text: 
 
         {hasChildren && (
           <div className="mt-1.5 space-y-1.5 w-full">
-            {node.children.map(child => renderInteractiveNode(child, depth + 1))}
+            {node.children.map((child, idx) => renderInteractiveNode(child, idx, depth + 1))}
           </div>
         )}
       </div>
@@ -1402,7 +1402,7 @@ const MermaidRenderer = ({ code, onAddCard }: { code: string; onAddCard: (text: 
       <div className="p-3 overflow-x-auto min-h-[100px] flex items-center justify-start max-w-full">
         {activeTab === "interactive" && parsedRoot && (
           <div className="w-full text-left scale-95 sm:scale-100 origin-left max-w-full">
-            {renderInteractiveNode(parsedRoot)}
+            {renderInteractiveNode(parsedRoot, 0, 0)}
           </div>
         )}
 

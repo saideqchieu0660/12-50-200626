@@ -203,7 +203,7 @@ export const dbService = {
 
   // --- RESOURCES (Google Drive Static URLs) ---
   addResource: async (name: string, type: string, driveUrl: string) => {
-    const docRef = await withTimeout(addDoc(collection(db, "resources"), { name, type, driveUrl }), 5000, { id: 'local_' + Date.now() });
+    const docRef = await withTimeout(addDoc(collection(db, "resources"), { name, type, driveUrl }), 5000, { id: 'local_' + Date.now() } as any);
     return docRef?.id;
   }
 };

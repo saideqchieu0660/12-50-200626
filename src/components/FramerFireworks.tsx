@@ -33,7 +33,7 @@ export const FramerFireworks = ({ active, onComplete }: { active: boolean; onCom
   return (
     <div className="pointer-events-none fixed inset-0 z-[150] flex items-center justify-center overflow-hidden">
       <AnimatePresence>
-        {particles.map((p) => (
+        {particles.map((p, index) => (
           <motion.div
             key={`${p.id || "p"}-${index}`}
             initial={{ opacity: 1, scale: 0, x: 0, y: 0 }}

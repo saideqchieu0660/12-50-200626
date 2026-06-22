@@ -92,7 +92,7 @@ export const getLevelInfo = (rawXp: number) => {
 
 export const getCustomTitleTextClass = (title?: string, fallbackClass?: string) => {
   if (title === "Quân Vương Triết Học") {
-    return "text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-orange-500 to-purple-500 font-black bg-[length:200%_auto] animate-[rainbow-bg_3s_linear_infinite]";
+    return "text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-orange-500 to-purple-500 font-black bg-size-200 animate-rainbow-text";
   }
   if (title === "Thủ Lĩnh Sparta") {
     return "text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-emerald-500 font-black";
@@ -107,7 +107,7 @@ export const getCustomTitleTextClass = (title?: string, fallbackClass?: string) 
     return "text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-400 to-cyan-500 font-black animate-pulse";
   }
   if (title === "Lãnh Chúa Thời Không") {
-    return "text-transparent bg-clip-text bg-gradient-to-r from-violet-500 via-fuchsia-500 to-red-500 font-black bg-[length:200%_auto] animate-[rainbow-bg_3s_linear_infinite]";
+    return "text-transparent bg-clip-text bg-gradient-to-r from-violet-500 via-fuchsia-500 to-red-500 font-black bg-size-200 animate-rainbow-text";
   }
   if (title === "Thần Thoại Kỷ Nguyên Mới") {
     return "text-transparent font-black drop-shadow-[0_0_20px_rgba(255,255,255,1)] animate-pulse tracking-[0.15em] bg-clip-text bg-gradient-to-b from-white to-neutral-500";

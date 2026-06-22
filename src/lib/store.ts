@@ -7,9 +7,11 @@ export type Role = "student" | "teacher" | "admin" | "Admin";
 export interface User {
   id: string;
   name: string;
+  email?: string;
   password?: string;
   role: Role;
   points: number; // For weekly ranking
+  studyMinutes?: number;
   streak?: number;
   lastActiveDate?: string;
   streakFreeze?: boolean;

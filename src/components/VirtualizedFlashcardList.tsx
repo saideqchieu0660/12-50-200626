@@ -217,7 +217,7 @@ export const VirtualizedFlashcardList = React.memo(function VirtualizedFlashcard
         >
           {visibleItems.map(({ card, index }) => (
             <FlashcardRow
-              key={`${card.id || "card"}-${idx}`}
+              key={`${card.id || "card"}-${index}`}
               card={card}
               index={index}
               onPlay={onPlay}

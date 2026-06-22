@@ -176,7 +176,7 @@ URL: ${window.location.href}`;
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-4 z-[9999] flex flex-col gap-3 max-w-[90%] sm:max-w-[350px] md:max-w-sm w-full">
       <AnimatePresence>
-        {errors.map((error) => (
+        {errors.map((error, index) => (
           <motion.div
             key={error.id || index}
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
