@@ -1265,10 +1265,13 @@ Acknowledge this protocol. Execute all text transformations deterministically at
               }
 
               if (cardsInChunk.length < exactCount) {
-                // Retry incremental check if yield is dropped
-                throw new Error(
-                  `Data Loss: Yêu cầu ${exactCount} thẻ nhưng chỉ nhận được ${cardsInChunk.length}. Đang làm dịu và thử lại...`,
-                );
+                if (attempt < maxRetries) {
+                  throw new Error(
+                    `Data Loss: Yêu cầu ${exactCount} thẻ nhưng chỉ nhận được ${cardsInChunk.length}. Đang làm dịu và thử lại...`,
+                  );
+                } else {
+                  pushLog(`⚠️ Nhận thiếu thẻ (${cardsInChunk.length}/${exactCount}) nhưng đã hết số lần thử, vẫn tiếp tục gộp để tránh mất dữ liệu diện rộng.`, true);
+                }
               }
 
               success = true;

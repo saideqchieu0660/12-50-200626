@@ -972,6 +972,144 @@ function handleGroqError(state: KeyState, err: any) {
   }
 }
 
+let generateContentGlobalProviderIndex = 0;
+
+async function executeGenerateContentRoundRobin(contents: any, config: any = {}): Promise<string> {
+  const isJsonMode = config.responseMimeType === "application/json";
+  let activeProviders: string[] = [];
+  if (isGeminiEnabled && geminiKeyStates.length > 0) activeProviders.push("gemini");
+  if (isGroqEnabled && groqKeyStates.length > 0) activeProviders.push("groq");
+  if (isOpenRouterEnabled && openRouterKeyStates.length > 0) activeProviders.push("openrouter");
+
+  if (activeProviders.length === 0) {
+    throw new Error("Tất cả Cổng API đều đã tắt hoặc hết key. Vui lòng bật ít nhất 1 nhà cung cấp.");
+  }
+
+  let attempt = 0;
+  let maxAttempts = Math.max(10, (isGroqEnabled ? groqKeyStates.length : 0) + (isOpenRouterEnabled ? openRouterKeyStates.length : 0) + (isGeminiEnabled ? geminiKeyStates.length : 0));
+  
+  let startProviderIndex = 0;
+  if (activeProviders.length > 1) {
+     startProviderIndex = generateContentGlobalProviderIndex;
+     generateContentGlobalProviderIndex = (generateContentGlobalProviderIndex + 1) % activeProviders.length;
+  }
+
+  let responseText = "";
+  let finalError;
+
+  let promptText = "";
+  if (typeof contents === "string") {
+    promptText = contents;
+  } else if (Array.isArray(contents)) {
+    promptText = contents.map(c => {
+       if (c.text) return c.text;
+       if (c.inlineData) return "[Image data attached - Supported on Gemini only]";
+       return JSON.stringify(c);
+    }).join("\n");
+  }
+
+  const numProviders = activeProviders.length;
+  for (let pIdx = 0; pIdx < numProviders; pIdx++) {
+    const providerIndex = (startProviderIndex + pIdx) % numProviders;
+    const provider = activeProviders[providerIndex];
+
+    try {
+      if (provider === "groq") {
+        const numKeys = groqKeyStates.length;
+        for (let kIdx = 0; kIdx < numKeys; kIdx++) {
+          const { key, state } = getGroqKey();
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 60000);
+          try {
+            const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+              body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                   ...(config.systemInstruction ? [{ role: "system", content: config.systemInstruction }] : []),
+                   { role: "user", content: promptText }
+                ],
+                temperature: config.temperature ?? 0.3,
+                ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
+              }),
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            if (!res.ok) throw new Error(`Groq API Error: ${res.status}`);
+            const data = await res.json();
+            responseText = data?.choices?.[0]?.message?.content || "";
+            if (responseText) {
+               addGroqRotationLog({ toKeyIndex: state.index, reason: `General execution successful` });
+               return responseText;
+            }
+          } catch (err: any) {
+             handleGroqError(state, err);
+             finalError = err;
+          }
+        }
+      } else if (provider === "openrouter") {
+        const numKeys = openRouterKeyStates.length;
+        for (let kIdx = 0; kIdx < numKeys; kIdx++) {
+          const { key, state } = getOpenRouterKey();
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 60000);
+          try {
+            const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                 "Content-Type": "application/json",
+                 "Authorization": `Bearer ${key}`,
+                 "HTTP-Referer": "http://localhost:3000",
+                 "X-Title": "Henosis App"
+              },
+              body: JSON.stringify({
+                 model: "google/gemini-2.5-flash:free",
+                 messages: [
+                   ...(config.systemInstruction ? [{ role: "system", content: config.systemInstruction }] : []),
+                   { role: "user", content: promptText }
+                 ],
+                 temperature: config.temperature ?? 0.3,
+                 ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
+              }),
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            if (!res.ok) throw new Error(`OpenRouter API Error: ${res.status}`);
+            const data = await res.json();
+            responseText = data?.choices?.[0]?.message?.content || "";
+            if (responseText) {
+               addOpenRouterRotationLog({ toKeyIndex: state.index, reason: `General execution successful` });
+               return responseText;
+            }
+          } catch (err: any) {
+             handleOpenRouterError(state, err);
+             finalError = err;
+          }
+        }
+      } else if (provider === "gemini") {
+        try {
+           responseText = await executeGeminiWithRetry(async (ai) => {
+              const res = await ai.models.generateContent({
+                 model: "gemini-2.5-flash",
+                 contents: contents,
+                 config: config
+              });
+              return res.text || "";
+           });
+           if (responseText) return responseText;
+        } catch (err: any) {
+           finalError = err;
+        }
+      }
+    } catch (e: any) {
+       console.warn(`[${provider}] Unhandled error:`, e?.message);
+    }
+  }
+
+  throw new Error("All API Providers failed after multiple attempts. Last error: " + (finalError?.message || "Unknown Error"));
+}
+
 const app = express();
 
 app.post("/api/auth/escalate-role", express.json(), async (req, res) => {
@@ -1405,42 +1543,9 @@ Bọc công thức Toán/Lý/Hóa bằng LaTeX (dấu $ hoặc $$). Chỉ trả 
 
       let responseText = "";
       try {
-        responseText = await executeGeminiWithRetry(async (ai) => {
-            const response = await ai.models.generateContent({
-              model: "gemini-2.5-flash",
-              contents: prompt
-            });
-            return response.text;
-        });
+        responseText = await executeGenerateContentRoundRobin(prompt);
       } catch (geminiError: any) {
-        console.warn("Agent 2 Gemini Failed, falling back to OpenRouter:", geminiError.message);
-        if (isOpenRouterEnabled && openRouterKeyStates.length > 0) {
-           const { key, state } = getOpenRouterKey();
-           const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-             method: "POST",
-             headers: {
-               "Content-Type": "application/json",
-               "Authorization": `Bearer ${key}`,
-               "HTTP-Referer": "http://localhost:3000",
-               "X-Title": "Henosis Learning App"
-             },
-             body: JSON.stringify({
-               model: "google/gemini-2.5-flash:free",
-               messages: [{ role: "user", content: prompt }],
-               temperature: 0.1
-             })
-           });
-           
-           if (!openRouterRes.ok) throw new Error("OpenRouter Fallback Failed: " + await openRouterRes.text());
-           const data = await openRouterRes.json();
-           responseText = data.choices[0]?.message?.content || "";
-           
-           state.usageCount++;
-           state.lastUsed = new Date();
-           updateKeyMetrics(state.index, "usage");
-        } else {
-           throw geminiError;
-        }
+        throw geminiError;
       }
       
       res.json({ result: responseText });
@@ -1481,16 +1586,9 @@ BẮT BUỘC ĐỊNH DẠNG: Chỉ trả về ĐÚNG MỘT MẢNG JSON duy nhấ
   }
 ]`;
 
-      const responseText = await executeGeminiWithRetry(async (ai) => {
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-              responseMimeType: "application/json",
-              temperature: 0.3
-            }
-          });
-          return response.text;
+      const responseText = await executeGenerateContentRoundRobin(prompt, {
+         responseMimeType: "application/json",
+         temperature: 0.3
       });
 
       res.json({ result: responseText });
@@ -1589,14 +1687,7 @@ ${chunkWords.join("\n")}`;
          
          while (retryAttempts < 3 && !parseSuccess) {
             try {
-               const chunkResText = await executeGeminiWithRetry(async (ai) => {
-                   const res = await ai.models.generateContent({
-                      model: "gemini-2.5-flash",
-                      contents: [{ text: prompt }],
-                      config: { temperature: 0.1 }
-                   });
-                   return res.text || "";
-               });
+               const chunkResText = await executeGenerateContentRoundRobin(prompt, { temperature: 0.1 });
                
                const chunkJsonText = chunkResText.replace(/```(?:json)?/g, "").trim();
                let chunkArr;
@@ -1796,14 +1887,7 @@ ${chunkWords.join("\n")}`;
 
       while (retryAttempts < 3) {
          try {
-            const chunkResText = await executeGeminiWithRetry(async (ai) => {
-                const res = await ai.models.generateContent({
-                   model: modelToUse,
-                   contents: [{ text: prompt }],
-                   config: { temperature: 0.1 }
-                });
-                return res.text || "";
-            });
+            const chunkResText = await executeGenerateContentRoundRobin(prompt, { temperature: 0.1 });
             
             const chunkJsonText = chunkResText.replace(/```(?:json)?/g, "").trim();
             try {
@@ -1868,47 +1952,12 @@ KHÔNG sử dụng Markdown code block. TRẢ VỀ ĐÚNG MỘT OBJECT JSON DUY 
 
       let responseText = "";
       try {
-        responseText = await executeGeminiWithRetry(async (ai) => {
-            const response = await ai.models.generateContent({
-              model: "gemini-2.5-flash",
-              contents: prompt,
-              config: {
-                responseMimeType: "application/json",
-                temperature: 0.3
-              }
-            });
-            return response.text;
+        responseText = await executeGenerateContentRoundRobin(prompt, {
+           responseMimeType: "application/json",
+           temperature: 0.3
         });
       } catch (geminiError: any) {
-        console.warn("Agent Lesson Plan Gemini Failed, falling back to OpenRouter:", geminiError.message);
-        if (isOpenRouterEnabled && openRouterKeyStates.length > 0) {
-           const { key, state } = getOpenRouterKey();
-           const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-             method: "POST",
-             headers: {
-               "Content-Type": "application/json",
-               "Authorization": `Bearer ${key}`,
-               "HTTP-Referer": "http://localhost:3000",
-               "X-Title": "Henosis Learning App"
-             },
-             body: JSON.stringify({
-               model: "google/gemini-2.5-flash:free",
-               messages: [{ role: "user", content: prompt }],
-               temperature: 0.3,
-               response_format: { type: "json_object" }
-             })
-           });
-           
-           if (!openRouterRes.ok) throw new Error("OpenRouter Fallback Failed: " + await openRouterRes.text());
-           const data = await openRouterRes.json();
-           responseText = data.choices[0]?.message?.content || "";
-           
-           state.usageCount++;
-           state.lastUsed = new Date();
-           updateKeyMetrics(state.index, "usage");
-        } else {
-           throw geminiError;
-        }
+        throw geminiError;
       }
       
       res.json({ result: responseText });
@@ -2045,44 +2094,11 @@ ${conciseModeGuidance}`;
             
             let responseText = "";
             try {
-              responseText = await executeGeminiWithRetry(async (ai) => {
-                   const response = await ai.models.generateContent({
-                       model: "gemini-2.5-flash",
-                       contents: mcqPrompt,
-                       config: { responseMimeType: "application/json" }
-                    });
-                     return response.text;
+              responseText = await executeGenerateContentRoundRobin(mcqPrompt, {
+                 responseMimeType: "application/json"
               });
             } catch (geminiError: any) {
-              console.warn("Agent 3 Quiz Gemini Failed, falling back to OpenRouter:", geminiError.message);
-              if (isOpenRouterEnabled && openRouterKeyStates.length > 0) {
-                 const { key, state } = getOpenRouterKey();
-                 const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                   method: "POST",
-                   headers: {
-                     "Content-Type": "application/json",
-                     "Authorization": `Bearer ${key}`,
-                     "HTTP-Referer": "http://localhost:3000",
-                     "X-Title": "Henosis Learning App"
-                   },
-                   body: JSON.stringify({
-                     model: "google/gemini-2.5-flash:free",
-                     messages: [{ role: "user", content: mcqPrompt }],
-                     temperature: 0.1,
-                     response_format: { type: "json_object" }
-                   })
-                 });
-                 
-                 if (!openRouterRes.ok) throw new Error("OpenRouter Fallback Failed: " + await openRouterRes.text());
-                 const data = await openRouterRes.json();
-                 responseText = data.choices[0]?.message?.content || "";
-                 
-                 state.usageCount++;
-                 state.lastUsed = new Date();
-                 updateKeyMetrics(state.index, "usage");
-              } else {
-                 throw geminiError;
-              }
+              throw geminiError;
             }
             return res.json({ result: responseText });
           }
@@ -2147,50 +2163,13 @@ ${reminderSuffix}`;
 
       let responseText = "";
       try {
-        responseText = await executeGeminiWithRetry(async (ai) => {
-            const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: contents,
-                config: {
-                    systemInstruction: systemPrompt,
-                    temperature: responseMode === "direct" && responseStyle !== "detailed" ? 0.3 : 0.8,
-                    maxOutputTokens: 8192
-                }
-            });
-            return response.text || "";
-         });
+        responseText = await executeGenerateContentRoundRobin(contents, {
+            systemInstruction: systemPrompt,
+            temperature: responseMode === "direct" && responseStyle !== "detailed" ? 0.3 : 0.8,
+            maxOutputTokens: 8192
+        });
       } catch (geminiError: any) {
-         console.warn("Agent 3 Chat Gemini Failed, falling back to OpenRouter:", geminiError.message);
-         if (isOpenRouterEnabled && openRouterKeyStates.length > 0) {
-            const { key, state } = getOpenRouterKey();
-            const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${key}`,
-                "HTTP-Referer": "http://localhost:3000",
-                "X-Title": "Henosis Learning App"
-              },
-              body: JSON.stringify({
-                model: "google/gemini-2.5-flash:free",
-                messages: [
-                  { role: "system", content: systemPrompt },
-                  { role: "user", content: contextualPrompt }
-                ],
-                temperature: responseMode === "direct" && responseStyle !== "detailed" ? 0.3 : 0.8
-              })
-            });
-            
-            if (!openRouterRes.ok) throw new Error("OpenRouter Fallback Failed: " + await openRouterRes.text());
-            const data = await openRouterRes.json();
-            responseText = data.choices[0]?.message?.content || "";
-            
-            state.usageCount++;
-            state.lastUsed = new Date();
-            updateKeyMetrics(state.index, "usage");
-         } else {
-            throw geminiError;
-         }
+         throw geminiError;
       }
 
       res.json({ result: responseText });
@@ -2986,6 +2965,9 @@ Return a JSON format matching this EXACT structure:
 }
 \`\`\`
 
+Rule Checklist for JSON creation:
+If the 'front' field consists of ONLY ONE word (no spaces), you MUST NOT label its 'wordForm' as 'idiom', 'collocation', or 'phrasal verb'. You MUST classify it strictly as a noun (n.), verb (v.), adjective (adj.), or adverb (adv.).
+
 Original Source Text:
 ${textChunk}`;
 
@@ -3005,6 +2987,9 @@ Provide ONLY valid JSON.
 }
 \`\`\`
 
+Rule Checklist for JSON creation:
+If the 'front' field consists of ONLY ONE word (no spaces), you MUST NOT label its 'wordForm' as 'idiom', 'collocation', or 'phrasal verb'.
+
 Original Text:
 ${textChunk}`;
 
@@ -3013,10 +2998,12 @@ ${textChunk}`;
         } else {
           // Exact text line mode
           const exactCountValue = exactCount || 5;
-          const normalPrompt = `You are an elite English-Vietnamese lexicographer and academic vocabulary trainer. Your goal is to identify and extract prominent vocabulary words, academic terms, useful collocations, or idiomatic expressions from this source text into highly educational flashcards.
+          const normalPrompt = `You are an AI data processor acting as a sequential compiler.
 
 STRICT FORMAT & COUNT INSTRUCTIONS:
-The input contains EXACTLY ${exactCountValue} items. You MUST return EXACTLY ${exactCountValue} flashcard records. Do not merge, skip, or summarize any items.
+The input contains EXACTLY ${exactCountValue} items (lines/chunks). You MUST process EVERY SINGLE ITEM sequentially, 1-to-1.
+DO NOT FILTER. DO NOT SKIP. DO NOT SUMMARIZE. Even if a word seems trivial or non-academic, YOU MUST include it.
+You MUST return EXACTLY ${exactCountValue} flashcard records.
 
 DO NOT OUTPUT JSON! You MUST output plain text where each line represents exactly one flashcard.
 Use the exact delimiter ' ||| ' between fields.
@@ -3027,15 +3014,18 @@ Rule Checklist:
 1. Return ONLY pure text, ONE card per line.
 2. NO markdown wrapper. NO prefixes like "-".
 3. Every line MUST contain exactly 5 ' ||| ' delimiters separating the 6 fields.
-4. If a field is empty (like a missing example or IPA), leave it blank but KEEP the delimiter.
+4. If a field is empty (like a missing example or origin), leave it blank but KEEP the delimiters!
+5. If the 'front' field consists of ONLY ONE word (no spaces), you MUST NOT label its 'wordForm' as 'idiom', 'collocation', or 'phrasal verb'. You MUST classify it strictly as a noun (n.), verb (v.), adjective (adj.), or adverb (adv.).
 
 Original Source Text:
 ${textChunk}`;
 
-          const degradedPrompt = `You are an elite English-Vietnamese lexicographer and academic vocabulary trainer. Your goal is to identify and extract prominent vocabulary words, academic terms, useful collocations, or idiomatic expressions from this source text into highly educational flashcards.
+          const degradedPrompt = `You are an AI data processor acting as a sequential compiler.
 
 STRICT FORMAT & COUNT INSTRUCTIONS:
-The input contains EXACTLY ${exactCountValue} items. You MUST return EXACTLY ${exactCountValue} flashcard records. Do not merge, skip, or summarize any items.
+The input contains EXACTLY ${exactCountValue} items (lines/chunks). You MUST process EVERY SINGLE ITEM sequentially, 1-to-1.
+DO NOT FILTER. DO NOT SKIP. DO NOT SUMMARIZE. Even if a word seems trivial or non-academic, YOU MUST include it.
+You MUST return EXACTLY ${exactCountValue} flashcard records.
 
 DO NOT OUTPUT JSON! You MUST output plain text where each line represents exactly one flashcard.
 Use the exact delimiter ' ||| ' between fields.
@@ -3048,7 +3038,8 @@ Rule Checklist:
 1. Return ONLY pure text, ONE card per line.
 2. NO markdown wrapper. NO prefixes like "-".
 3. Every line MUST contain exactly 3 ' ||| ' delimiters separating the 4 fields.
-4. If a field is empty (like a missing IPA), leave it blank but KEEP the delimiter.
+4. If a field is empty (like a missing IPA), leave it blank but KEEP the delimiters!
+5. If the 'front' field consists of ONLY ONE word (no spaces), you MUST NOT label its 'wordForm' as 'idiom', 'collocation', or 'phrasal verb'.
 
 Original Source Text:
 ${textChunk}`;
@@ -3099,151 +3090,166 @@ ${textChunk}`;
         let attempt = 0;
         let maxAttempts = Math.max(10, (isGroqEnabled ? groqKeyStates.length : 0) + (isOpenRouterEnabled ? openRouterKeyStates.length : 0) + (isGeminiEnabled ? geminiKeyStates.length : 0));
 
-        let startProviderIndex = processChunkGlobalProviderIndex;
-        if (activeProviders.length > 0) {
+        let startProviderIndex = 0;
+        if (activeProviders.length > 1) {
+           startProviderIndex = processChunkGlobalProviderIndex;
            processChunkGlobalProviderIndex = (processChunkGlobalProviderIndex + 1) % activeProviders.length;
         }
 
-        while (attempt < maxAttempts && !success && activeProviders.length > 0) {
-          const provider = activeProviders[(startProviderIndex + attempt) % activeProviders.length];
-          attempt++;
+        const numProviders = activeProviders.length;
+        for (let pIdx = 0; pIdx < numProviders && !success; pIdx++) {
+          const providerIndex = (startProviderIndex + pIdx) % numProviders;
+          const provider = activeProviders[providerIndex];
 
           try {
             if (provider === "groq") {
-              const { key, state } = getGroqKey();
-              const groqController = new AbortController();
-              const groqTimeoutId = setTimeout(() => groqController.abort(), 60000);
-              try {
-                const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${key}`
-                  },
-                  body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
-                    messages: [{ role: "user", content: activePrompt }],
-                    temperature: 0.1,
-                    ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
-                  }),
-                  signal: groqController.signal
-                });
-                clearTimeout(groqTimeoutId);
-
-                if (!groqRes.ok) throw new Error(`Groq API Error: ${groqRes.status}`);
-                const data = await groqRes.json();
-                responseText = data?.choices?.[0]?.message?.content || "";
-                if (responseText) {
-                  usedKeyState = { index: state.index, maskedKey: state.maskedKey, provider: "groq" };
-                  success = true;
-                  addGroqRotationLog({
-                     toKeyIndex: state.index,
-                     reason: "Pipeline process-chunk generated successfully (200 OK)"
+              const numKeys = groqKeyStates.length;
+              for (let kIdx = 0; kIdx < numKeys && !success; kIdx++) {
+                const { key, state } = getGroqKey();
+                const groqController = new AbortController();
+                const groqTimeoutId = setTimeout(() => groqController.abort(), 60000);
+                try {
+                  const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${key}`
+                    },
+                    body: JSON.stringify({
+                      model: "llama-3.3-70b-versatile",
+                      messages: [{ role: "user", content: activePrompt }],
+                      temperature: 0.1,
+                      ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
+                    }),
+                    signal: groqController.signal
                   });
-                  if (data.usage) {
-                    tokenUsageData = {
-                      promptTokens: data.usage.prompt_tokens || 0,
-                      completionTokens: data.usage.completion_tokens || 0,
-                      totalTokens: data.usage.total_tokens || 0
-                    };
+                  clearTimeout(groqTimeoutId);
+
+                  if (!groqRes.ok) throw new Error(`Groq API Error: ${groqRes.status}`);
+                  const data = await groqRes.json();
+                  responseText = data?.choices?.[0]?.message?.content || "";
+                  if (responseText) {
+                    usedKeyState = { index: state.index, maskedKey: state.maskedKey, provider: "groq" };
+                    success = true;
+                    addGroqRotationLog({
+                       toKeyIndex: state.index,
+                       reason: "Pipeline process-chunk generated successfully (200 OK)"
+                    });
+                    if (data.usage) {
+                      tokenUsageData = {
+                        promptTokens: data.usage.prompt_tokens || 0,
+                        completionTokens: data.usage.completion_tokens || 0,
+                        totalTokens: data.usage.total_tokens || 0
+                      };
+                    }
                   }
+                } catch (groqErr) {
+                  handleGroqError(state, groqErr);
+                  console.warn(`RoundRobin[Groq] inner loop attempt failed, key ${state.index}`);
                 }
-              } catch (groqErr) {
-                handleGroqError(state, groqErr);
-                console.warn(`RoundRobin[Groq] attempt ${attempt} failed, key ${state.index}`);
               }
             } else if (provider === "openrouter") {
-              const { key, state } = getOpenRouterKey();
-              const openRouterController = new AbortController();
-              const openRouterTimeoutId = setTimeout(() => openRouterController.abort(), 60000);
-              try {
-                const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${key}`,
-                    "HTTP-Referer": "http://localhost:3000",
-                    "X-Title": "Henosis Learning App"
-                  },
-                  body: JSON.stringify({
-                    model: "google/gemini-2.5-flash:free",
-                    messages: [{ role: "user", content: activePrompt }],
-                    temperature: 0.1,
-                    ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
-                  }),
-                  signal: openRouterController.signal
-                });
-                clearTimeout(openRouterTimeoutId);
-
-                if (!openRouterRes.ok) throw new Error(`OpenRouter API Error: ${openRouterRes.status}`);
-                const data = await openRouterRes.json();
-                responseText = data?.choices?.[0]?.message?.content || "";
-                if (responseText) {
-                  usedKeyState = { index: state.index, maskedKey: state.maskedKey, provider: "openrouter" };
-                  success = true;
-                  addOpenRouterRotationLog({
-                     toKeyIndex: state.index,
-                     reason: "Pipeline process-chunk generated successfully (200 OK)"
+              const numKeys = openRouterKeyStates.length;
+              for (let kIdx = 0; kIdx < numKeys && !success; kIdx++) {
+                const { key, state } = getOpenRouterKey();
+                const openRouterController = new AbortController();
+                const openRouterTimeoutId = setTimeout(() => openRouterController.abort(), 60000);
+                try {
+                  const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${key}`,
+                      "HTTP-Referer": "http://localhost:3000",
+                      "X-Title": "Henosis Learning App"
+                    },
+                    body: JSON.stringify({
+                      model: "google/gemini-2.5-flash:free",
+                      messages: [{ role: "user", content: activePrompt }],
+                      temperature: 0.1,
+                      ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
+                    }),
+                    signal: openRouterController.signal
                   });
-                  if (data.usage) {
-                    tokenUsageData = {
-                      promptTokens: data.usage.prompt_tokens || 0,
-                      completionTokens: data.usage.completion_tokens || 0,
-                      totalTokens: data.usage.total_tokens || 0
-                    };
+                  clearTimeout(openRouterTimeoutId);
+
+                  if (!openRouterRes.ok) throw new Error(`OpenRouter API Error: ${openRouterRes.status}`);
+                  const data = await openRouterRes.json();
+                  responseText = data?.choices?.[0]?.message?.content || "";
+                  if (responseText) {
+                    usedKeyState = { index: state.index, maskedKey: state.maskedKey, provider: "openrouter" };
+                    success = true;
+                    addOpenRouterRotationLog({
+                       toKeyIndex: state.index,
+                       reason: "Pipeline process-chunk generated successfully (200 OK)"
+                    });
+                    if (data.usage) {
+                      tokenUsageData = {
+                        promptTokens: data.usage.prompt_tokens || 0,
+                        completionTokens: data.usage.completion_tokens || 0,
+                        totalTokens: data.usage.total_tokens || 0
+                      };
+                    }
                   }
+                } catch (openRouterErr) {
+                  handleOpenRouterError(state, openRouterErr);
+                  console.warn(`RoundRobin[OpenRouter] inner loop attempt failed, key ${state.index}`);
                 }
-              } catch (openRouterErr) {
-                handleOpenRouterError(state, openRouterErr);
-                console.warn(`RoundRobin[OpenRouter] attempt ${attempt} failed, key ${state.index}`);
               }
             } else if (provider === "gemini") {
-              const { ai, state } = getGeminiClient();
-              state.usageCount++;
-              state.lastUsed = new Date();
-              updateKeyMetrics(state.index, "usage");
-              
-              try {
-                const timeoutPromise = new Promise<never>((_, reject) => 
-                  setTimeout(() => reject(new Error("Gemini API Timeout (60s)")), 60000)
-                );
+              const numKeys = geminiKeyStates.length;
+              for (let kIdx = 0; kIdx < numKeys && !success; kIdx++) {
+                const { ai, state } = getGeminiClient();
+                state.usageCount++;
+                state.lastUsed = new Date();
+                updateKeyMetrics(state.index, "usage");
                 
-                const response = await Promise.race([
-                  ai.models.generateContent({
-                    model: "gemini-2.5-flash",
-                    contents: activePrompt,
-                    config: {
-                      responseMimeType: isJsonMode ? "application/json" : "text/plain",
-                      temperature: 0.1,
-                    }
-                  }),
-                  timeoutPromise
-                ]);
+                try {
+                  const timeoutPromise = new Promise<never>((_, reject) => 
+                    setTimeout(() => reject(new Error("Gemini API Timeout (60s)")), 60000)
+                  );
+                  
+                  const response = await Promise.race([
+                    ai.models.generateContent({
+                      model: "gemini-2.5-flash",
+                      contents: activePrompt,
+                      config: {
+                        responseMimeType: isJsonMode ? "application/json" : "text/plain",
+                        temperature: 0.1,
+                      }
+                    }),
+                    timeoutPromise
+                  ]);
 
-                responseText = response.text;
-                if (responseText) {
-                  usedKeyState = { ...state, provider: "gemini" };
-                  success = true;
-                  addRotationLog({
-                     toKeyIndex: state.index,
-                     reason: "Pipeline process-chunk generated successfully (200 OK)"
-                  });
-                  if (response.usageMetadata) {
-                    tokenUsageData = {
-                      promptTokens: response.usageMetadata.promptTokenCount || 0,
-                      completionTokens: response.usageMetadata.candidatesTokenCount || 0,
-                      totalTokens: response.usageMetadata.totalTokenCount || 0
-                    };
+                  responseText = response.text;
+                  if (responseText) {
+                    usedKeyState = { ...state, provider: "gemini" };
+                    success = true;
+                    addRotationLog({
+                       toKeyIndex: state.index,
+                       reason: "Pipeline process-chunk generated successfully (200 OK)"
+                    });
+                    if (response.usageMetadata) {
+                      tokenUsageData = {
+                        promptTokens: response.usageMetadata.promptTokenCount || 0,
+                        completionTokens: response.usageMetadata.candidatesTokenCount || 0,
+                        totalTokens: response.usageMetadata.totalTokenCount || 0
+                      };
+                    }
                   }
+                } catch (geminiErr: any) {
+                  handleGeminiError(state, geminiErr);
+                  console.warn(`RoundRobin[Gemini] inner loop attempt failed, key ${state.index}`);
                 }
-              } catch (geminiErr: any) {
-                handleGeminiError(state, geminiErr);
-                console.warn(`RoundRobin[Gemini] attempt ${attempt} failed, key ${state.index}`);
               }
             }
           } catch (e) {
              console.error(`RoundRobin execution failed for ${provider}:`, e);
           }
+        }
+        
+        if (!success || !responseText) {
+           throw new Error("Tất cả Cổng API khả dụng đều phản hồi thất bại hoặc không có kết quả hợp lệ.");
         }
 
         let cleanText = (responseText as string).trim();
@@ -3456,10 +3462,7 @@ ${textChunk}`;
         return res.status(400).json({ error: true, message: "Thiếu từ khóa front." });
       }
 
-      const responseText = await executeGeminiWithRetry(async (ai, keyState) => {
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: `You are an expert English-Vietnamese lexicographer. Provide a high-quality illustrative example sentence for this English word/phrase.
+      const requestPrompt = `You are an expert English-Vietnamese lexicographer. Provide a high-quality illustrative example sentence for this English word/phrase.
           
 Word: ${front}
 Part of Speech: ${wordForm || "unknown"}
@@ -3471,13 +3474,11 @@ Return ONLY a minified JSON object with these EXACT keys:
   "origin": "An appropriate context snippet matching the word."
 }
 
-Do not include any markdown wrapper or extra text.`,
-          config: {
-            responseMimeType: "application/json",
-            temperature: 0.1,
-          }
-        });
-        return response.text;
+Do not include any markdown wrapper or extra text.`;
+
+      const responseText = await executeGenerateContentRoundRobin(requestPrompt, {
+         responseMimeType: "application/json",
+         temperature: 0.1
       });
 
       let cleanText = (responseText as string).trim();
@@ -3511,24 +3512,22 @@ Do not include any markdown wrapper or extra text.`,
         return res.status(400).json({ error: true, message: "Thiếu từ khóa front." });
       }
 
-      const responseText = await executeGeminiWithRetry(async (ai, keyState) => {
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: `Bạn là một chuyên gia ngôn ngữ học. Hãy cung cấp định nghĩa/giải thích ngắn gọn, dễ hiểu và chính xác nhất cho từ/cụm từ sau.
+      const requestPrompt = `Bạn là một chuyên gia ngôn ngữ học. Hãy cung cấp định nghĩa/giải thích ngắn gọn, dễ hiểu và chính xác nhất cho từ/cụm từ sau.
           
 Từ/Cụm từ: ${front}
 Từ loại/Ghi chú thêm: ${wordForm || "Không xác định"}
 
 NẾU từ/cụm từ là tiếng Anh (English), hãy tự động suy luận loại từ (word form, part of speech, ví dụ: Noun, Verb, Adjective...) và cách phát âm (IPA) (gộp chung dạng: Noun, /'stʌdi/).
+QUAN TRỌNG: Nếu "Từ/Cụm từ" chỉ có đúng 1 từ (không có khoảng trắng), bạn TUYỆT ĐỐI KHÔNG được phân loại là "Idiom", "Collocation", hay "Phrasal verb". Bạn PHẢI xếp nó vào Noun, Verb, Adjective, hoặc Adverb.
+
 NẾU KHÔNG phải tiếng Anh hoặc bạn không rõ, có thể bỏ trống trường wordForm.
 Trả về dữ liệu dưới dạng JSON chuẩn (không dùng markdown block) với cấu trúc:
 {
   "definition": "Định nghĩa/giải thích ngắn gọn (50-70 chữ)",
   "wordForm": "Loại từ, phát âm IPA (chỉ áp dụng nếu là tiếng Anh)"
-}`,
-          });
-        return response.text;
-      });
+}`;
+
+      const responseText = await executeGenerateContentRoundRobin(requestPrompt);
 
       let parsedData: any = { definition: (responseText as string).trim(), wordForm: wordForm || "" };
       try {
@@ -3560,11 +3559,7 @@ Trả về dữ liệu dưới dạng JSON chuẩn (không dùng markdown block)
       }
 
       let usedKeyState: any = null;
-      const responseText = await executeGeminiWithRetry(async (ai, keyState) => {
-        usedKeyState = keyState;
-        const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: `Bạn là một AI chuyên gia kiểm duyệt, làm sạch và sửa lỗi cú pháp dữ liệu cấu trúc (JSON Validator & Repairer).
+      const requestPrompt = `Bạn là một AI chuyên gia kiểm duyệt, làm sạch và sửa lỗi cú pháp dữ liệu cấu trúc (JSON Validator & Repairer).
 Nhiệm vụ của bạn là nhận vào một chuỗi văn bản (có thể là JSON chuẩn, JSON bị thiếu ngoặc, thừa dấu phẩy ở cuối phần tử, bị bọc trong markdown, hoặc chứa một mảng các đối tượng thông tin thẻ học) và sửa lỗi cú pháp của nó, sau đó chuẩn hóa nó thành một mảng JSON Array chính xác có cấu trúc sau:
 
 [
@@ -3583,13 +3578,11 @@ Yêu cầu cực kỳ nghiêm ngặt:
 - KHÔNG có bất kỳ lời giải thích dông dài nào. Nếu dữ liệu đầu vào hoàn toàn không thể phân tích hoặc không chứa thông tin thẻ học nào, hãy trả về mảng rỗng [].
 
 Dữ liệu đầu vào cần sửa lỗi và đồng bộ:
-${jsonText}`,
-          config: {
-            responseMimeType: "application/json",
-            temperature: 0.1,
-          }
-        });
-        return response.text;
+${jsonText}`;
+
+      const responseText = await executeGenerateContentRoundRobin(requestPrompt, {
+         responseMimeType: "application/json",
+         temperature: 0.1
       });
 
       let cleanText = (responseText as string).trim();

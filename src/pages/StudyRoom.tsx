@@ -1828,6 +1828,67 @@ export default function StudyRoom() {
     setIsExtracting(false);
   };
 
+  const handleAgent3 = async () => {
+    if (!currentCard) return;
+
+    if (user && user.role === "student" && cooldownRemaining > 0) {
+      setDeepExplanation(
+        `⏳ **Hệ thống AI đang hạ nhiệt**: Bạn là Học sinh, vui lòng đợi thêm **${cooldownRemaining} giây** để hỏi giải thích tiếp theo nhé.`,
+      );
+      return;
+    }
+
+    setIsExtracting(true);
+    setIsMinimized(false);
+
+    if (user && user.role === "student" && !user.isPro) {
+      startCooldown();
+    }
+
+    try {
+      const idToken = (await auth.currentUser?.getIdToken()) || "";
+      const contextualPrompt = `Thẻ học hiện tại:\nTừ khóa: ${currentCard?.front || "Trống"}\nNghĩa: ${currentCard?.back || "Trống"}\nChủ đề: ${currentCard?.subject || "Khác"}`;
+      const res = await safeRequest("/api/agent3/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+          "x-user-id": user?.id || "",
+          "x-user-role": user?.role || "",
+          "x-user-is-pro": user?.isPro ? "true" : "false",
+        },
+        body: JSON.stringify({
+          message: `Hãy bóc tách và giải thích từ/khái niệm này một cách "Siêu Tốc", Trực Diện và Súc Tích nhất.`,
+          context: contextualPrompt,
+          mode: "flashcard_assist",
+          responseMode: "direct",
+          responseStyle: "concise"
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        if (res.status === 429) {
+          setDeepExplanation(
+            `⏳ **Cooldown 20s**: ${errData.error || "Bạn đang gọi AI quá nhanh. Hãy chờ!"}`,
+          );
+          setIsExtracting(false);
+          return;
+        }
+        throw new Error(errData.error || "Failed to query express backend");
+      }
+
+      const data = await res.json();
+      setDeepExplanation(data.result);
+    } catch (e: any) {
+      setDeepExplanation(
+        "Failed to agent 3 extract. Check AI connection. Error: " +
+          (e.message || e),
+      );
+    }
+    setIsExtracting(false);
+  };
+
   const handleRemindLater = () => {
     if (!currentCard) return;
     const existing = JSON.parse(
@@ -2946,11 +3007,12 @@ export default function StudyRoom() {
                     <div className="relative flex flex-col items-center justify-center min-h-[60px] w-full px-8">
                       {(() => {
                         let computedForm = currentCard?.wordForm;
+                        const frontText =
+                          currentCard?.front ||
+                          (currentCard as any)?.word ||
+                          "";
+
                         if (!computedForm) {
-                          const frontText =
-                            currentCard?.front ||
-                            (currentCard as any)?.word ||
-                            "";
                           const check = detectLanguage(frontText);
                           if (check.isAvailable && check.locale === "en-US") {
                             const backText =
@@ -2963,14 +3025,24 @@ export default function StudyRoom() {
                             if (match) {
                               computedForm = match[1];
                             } else {
-                              const tokens = frontText.trim().split(/\s+/);
+                              // Strip parentheses and anything inside them like (n), (v), (n/v), (something)
+                              const cleanFront = frontText.replace(/\([^)]*\)/g, "").trim();
+                              const tokens = cleanFront.split(/\s+/).filter(t => t.length > 0);
+                              
                               if (tokens.length >= 3)
-                                computedForm = "idiomatic expression";
+                                computedForm = "idiom";
                               else if (tokens.length === 2)
                                 computedForm = "collocation";
                               else computedForm = "vocabulary";
                             }
                           }
+                        } else {
+                           // Legacy fix: if it's already tagged as idiom/collocation but has only 1 word (excluding parentheses)
+                           const cleanFront = frontText.replace(/\([^)]*\)/g, "").trim();
+                           const tokens = cleanFront.split(/\s+/).filter(t => t.length > 0);
+                           if (tokens.length === 1 && /idiom|colloc/i.test(computedForm)) {
+                              computedForm = "vocabulary";
+                           }
                         }
 
                         if (!computedForm) return null;
@@ -3396,27 +3468,50 @@ export default function StudyRoom() {
             {/* Agent 2 Deep Extract Button */}
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
               {(!deepExplanation || isPinned) && (
-                <button
-                  onClick={handleAgent2}
-                  disabled={isExtracting || cooldownRemaining > 0}
-                  className={cn(
-                    "w-full flex items-center justify-center gap-2 p-3 glass rounded-xl text-md font-bold border border-orange-500/30 hover:border-orange-500 hover:bg-orange-500/10 transition text-orange-700 dark:text-orange-400 shadow-sm",
-                    cooldownRemaining > 0 &&
-                      "opacity-50 cursor-not-allowed border-orange-500/10",
-                  )}
-                >
-                  <Sparkles
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={handleAgent2}
+                    disabled={isExtracting || cooldownRemaining > 0}
                     className={cn(
-                      "w-5 h-5 text-orange-500",
-                      cooldownRemaining > 0 && "animate-pulse",
+                      "w-full flex items-center justify-center gap-2 p-3 glass rounded-xl text-md font-bold border border-orange-500/30 hover:border-orange-500 hover:bg-orange-500/10 transition text-orange-700 dark:text-orange-400 shadow-sm",
+                      cooldownRemaining > 0 &&
+                        "opacity-50 cursor-not-allowed border-orange-500/10",
                     )}
-                  />
-                  {isExtracting
-                    ? "Đang Bóc Tách Chuyên Sâu..."
-                    : cooldownRemaining > 0
-                      ? `Sạc năng lượng AI (Chờ ${cooldownRemaining}s)...`
-                      : "Bóc Tách Sâu (Agent 2)"}
-                </button>
+                  >
+                    <Sparkles
+                      className={cn(
+                        "w-5 h-5 text-orange-500",
+                        cooldownRemaining > 0 && "animate-pulse",
+                      )}
+                    />
+                    {isExtracting
+                      ? "Đang xử lý..."
+                      : cooldownRemaining > 0
+                        ? `Sạc AI (Chờ ${cooldownRemaining}s)...`
+                        : "Bóc Tách Sâu (Agent 2)"}
+                  </button>
+                  <button
+                    onClick={handleAgent3}
+                    disabled={isExtracting || cooldownRemaining > 0}
+                    className={cn(
+                      "w-full flex items-center justify-center gap-2 p-3 glass rounded-xl text-md font-bold border border-blue-500/30 hover:border-blue-500 hover:bg-blue-500/10 transition text-blue-700 dark:text-blue-400 shadow-sm",
+                      cooldownRemaining > 0 &&
+                        "opacity-50 cursor-not-allowed border-blue-500/10",
+                    )}
+                  >
+                    <Sparkles
+                      className={cn(
+                        "w-5 h-5 text-blue-500",
+                        cooldownRemaining > 0 && "animate-pulse",
+                      )}
+                    />
+                    {isExtracting
+                      ? "Đang xử lý..."
+                      : cooldownRemaining > 0
+                        ? `Sạc AI (Chờ ${cooldownRemaining}s)...`
+                        : "Bóc Tách Siêu Tốc (Agent 3)"}
+                  </button>
+                </div>
               )}
 
               {deepExplanation && (
