@@ -1041,6 +1041,7 @@ export default function StudyRoom() {
   const [isPinned, setIsPinned] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [activeAgent, setActiveAgent] = useState<2 | 3>(2);
   const [quote] = useState(
     MOTIVATION_QUOTES[Math.floor(Math.random() * MOTIVATION_QUOTES.length)],
   );
@@ -1781,6 +1782,8 @@ export default function StudyRoom() {
     }
 
     setIsExtracting(true);
+    setActiveAgent(2);
+    setDeepExplanation(null);
     setIsMinimized(false);
 
     if (user && user.role === "student" && !user.isPro) {
@@ -1839,6 +1842,8 @@ export default function StudyRoom() {
     }
 
     setIsExtracting(true);
+    setActiveAgent(3);
+    setDeepExplanation(null);
     setIsMinimized(false);
 
     if (user && user.role === "student" && !user.isPro) {
@@ -3517,7 +3522,8 @@ export default function StudyRoom() {
               {deepExplanation && (
                 <div
                   className={cn(
-                    "text-base animate-in fade-in leading-relaxed border-t-4 border-orange-500 shadow-lg bg-gradient-to-b from-orange-500/10 to-background",
+                    "text-base animate-in fade-in leading-relaxed border-t-4 shadow-lg bg-gradient-to-b to-background",
+                    activeAgent === 2 ? "border-orange-500 from-orange-500/10" : "border-blue-500 from-blue-500/10",
                     isSerif ? "font-serif" : "font-sans",
                     isPinned
                       ? isMinimized
@@ -3530,17 +3536,17 @@ export default function StudyRoom() {
                   }}
                 >
                   {isPinned && isMinimized ? (
-                    <div className="flex items-center justify-center font-bold text-orange-600 dark:text-orange-400 gap-2">
+                    <div className={cn("flex items-center justify-center font-bold gap-2", activeAgent === 2 ? "text-orange-600 dark:text-orange-400" : "text-blue-600 dark:text-blue-400")}>
                       <Sparkles className="w-4 h-4" />
-                      <span>Agent 2</span>
+                      <span>Agent {activeAgent}</span>
                       <Maximize2 className="w-4 h-4 ml-2" />
                     </div>
                   ) : (
                     <>
-                      <div className="flex justify-between items-center mb-4 pb-2 border-b border-orange-600/20 dark:border-orange-500/30 sticky top-0 bg-background/80 backdrop-blur-md z-10 p-2 -mx-2 -mt-2">
-                        <span className="font-bold flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                      <div className={cn("flex justify-between items-center mb-4 pb-2 border-b sticky top-0 bg-background/80 backdrop-blur-md z-10 p-2 -mx-2 -mt-2", activeAgent === 2 ? "border-orange-600/20 dark:border-orange-500/30" : "border-blue-600/20 dark:border-blue-500/30")}>
+                        <span className={cn("font-bold flex items-center gap-2", activeAgent === 2 ? "text-orange-600 dark:text-orange-400" : "text-blue-600 dark:text-blue-400")}>
                           <Sparkles className="w-5 h-5" />
-                          Agent 2
+                          Agent {activeAgent}
                         </span>
                         <div className="flex items-center gap-1">
                           <button
@@ -3591,22 +3597,41 @@ export default function StudyRoom() {
                         <ParsedTextContent text={deepExplanation} />
                       </div>
                       <div className="mt-6 flex justify-end">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const event = new CustomEvent("trigger-agent3", {
-                              detail: {
-                                message:
-                                  "Hãy giải thích sâu hơn nữa, hoặc cho tôi ví dụ tình huống về nội dung thẻ này.",
-                                context: `Thẻ hiện tại đang học:\nMặt trước: ${currentCard?.front || ""}\nMặt sau: ${currentCard?.back || ""}\nGiải thích Agent 2: ${deepExplanation}`,
-                              },
-                            });
-                            window.dispatchEvent(event);
-                          }}
-                          className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-sm font-medium text-orange-700 dark:text-orange-400 rounded-lg transition"
-                        >
-                          <Bot className="w-4 h-4" /> Hỏi tiếp Agent 3
-                        </button>
+                        {activeAgent === 2 ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const event = new CustomEvent("trigger-agent3", {
+                                detail: {
+                                  message:
+                                    "Hãy giải thích sâu hơn nữa, hoặc cho tôi ví dụ tình huống về nội dung thẻ này.",
+                                  context: `Thẻ hiện tại đang học:\nMặt trước: ${currentCard?.front || ""}\nMặt sau: ${currentCard?.back || ""}\nGiải thích Agent 2: ${deepExplanation}`,
+                                },
+                              });
+                              window.dispatchEvent(event);
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-sm font-medium text-orange-700 dark:text-orange-400 rounded-lg transition"
+                          >
+                            <Bot className="w-4 h-4" /> Hỏi tiếp Agent 3
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const event = new CustomEvent("trigger-agent3", {
+                                detail: {
+                                  message:
+                                    "Tôi chưa hiểu lắm. Hãy lấy 1 ví dụ khác ngắn hơn cho thẻ này đi.",
+                                  context: `Thẻ hiện tại đang học:\nMặt trước: ${currentCard?.front || ""}\nMặt sau: ${currentCard?.back || ""}\nGiải thích Agent 3: ${deepExplanation}`,
+                                },
+                              });
+                              window.dispatchEvent(event);
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-sm font-medium text-blue-700 dark:text-blue-400 rounded-lg transition"
+                          >
+                            <Bot className="w-4 h-4" /> Hỏi tiếp Agent 3
+                          </button>
+                        )}
                       </div>
                     </>
                   )}
