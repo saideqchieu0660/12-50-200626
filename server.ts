@@ -285,6 +285,23 @@ async function refreshApiToggles() {
           updatedAt: new Date().toISOString()
         });
       }
+    } else {
+      // Fallback to REST API if Admin SDK is not initialized (e.g., in Serverless Vercel)
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || "henosis-web-b6df3";
+      if (projectId) {
+        const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/system_config/api_toggles`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const json = await res.json();
+          const fields = json.fields;
+          if (fields) {
+            if (fields.openRouterEnabled && fields.openRouterEnabled.booleanValue !== undefined) isOpenRouterEnabled = fields.openRouterEnabled.booleanValue;
+            if (fields.groqEnabled && fields.groqEnabled.booleanValue !== undefined) isGroqEnabled = fields.groqEnabled.booleanValue;
+            if (fields.geminiEnabled && fields.geminiEnabled.booleanValue !== undefined) isGeminiEnabled = fields.geminiEnabled.booleanValue;
+            if (fields.deepInfraEnabled && fields.deepInfraEnabled.booleanValue !== undefined) isDeepInfraEnabled = fields.deepInfraEnabled.booleanValue;
+          }
+        }
+      }
     }
   } catch (err) {
     console.error("[API Toggles] Error refreshing toggles from Firestore:", err);
@@ -1031,6 +1048,7 @@ async function executeGenerateContentRoundRobin(contents: any, config: any = {})
                    { role: "user", content: promptText }
                 ],
                 temperature: config.temperature ?? 0.3,
+                max_completion_tokens: 8192,
                 ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
               }),
               signal: controller.signal
@@ -2945,9 +2963,9 @@ ${reminderSuffix}`;
         let activePrompt = "";
 
         if (isJsonMode) {
-          const jsonNormalPrompt = `You are an elite English-Vietnamese lexicographer and academic vocabulary trainer. Your goal is to identify and extract prominent vocabulary words, academic terms, useful collocations, or idiomatic expressions from this source text into highly educational flashcards.
+          const jsonNormalPrompt = `You are an elite English-Vietnamese lexicographer and academic vocabulary trainer. Your goal is to identify and extract ALL prominent vocabulary words, academic terms, useful collocations, or idiomatic expressions from this source text into highly educational flashcards.
 
-Extract at least ${targetMin} and at most ${targetMax} flashcards.
+CRITICAL INSTRUCTION: You MUST extract EVERYTHING comprehensively. DO NOT SKIP, DO NOT SUMMARIZE. If the input is a list of terms or a dense document, you MUST generate a flashcard for EVERY SINGLE VALID TERM present in the text. Ensure zero data loss.
 
 Return a JSON format matching this EXACT structure:
 \`\`\`json
@@ -2971,7 +2989,7 @@ If the 'front' field consists of ONLY ONE word (no spaces), you MUST NOT label i
 Original Source Text:
 ${textChunk}`;
 
-          const jsonDegradedPrompt = `Extract at least ${targetMin} and at most ${targetMax} flashcards from this text.
+          const jsonDegradedPrompt = `Extract ALL vocabulary words from this text comprehensively without dropping any data.
 Provide ONLY valid JSON.
 \`\`\`json
 {
@@ -3062,6 +3080,7 @@ ${textChunk}`;
                 config: {
                   responseMimeType: isJsonMode ? "application/json" : "text/plain",
                   temperature: 0.1,
+                  maxOutputTokens: 8192,
                 }
               });
 
@@ -3119,6 +3138,7 @@ ${textChunk}`;
                       model: "llama-3.3-70b-versatile",
                       messages: [{ role: "user", content: activePrompt }],
                       temperature: 0.1,
+                      max_completion_tokens: 8192,
                       ...(isJsonMode ? { response_format: { type: "json_object" } } : {})
                     }),
                     signal: groqController.signal
@@ -3216,6 +3236,7 @@ ${textChunk}`;
                       config: {
                         responseMimeType: isJsonMode ? "application/json" : "text/plain",
                         temperature: 0.1,
+                        maxOutputTokens: 8192,
                       }
                     }),
                     timeoutPromise

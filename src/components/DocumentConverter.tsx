@@ -527,7 +527,7 @@ Extract all items into the \`data\` array matching this exact vocabulary schema:
     deckSubjectRef.current = deckSubject;
   }, [deckSubject]);
 
-  const [chunkMaxWords, setChunkMaxWords] = useState<number>(150); // Mặc định 150 từ
+  const [chunkMaxWords, setChunkMaxWords] = useState<number>(300); // Mặc định 300 từ
   const [chunkMaxChars, setChunkMaxChars] = useState<number>(2500); // Mặc định 2500 kí tự
   const [chunkOverlapWords, setChunkOverlapWords] = useState<number>(10);
   const [lastSplitMetrics, setLastSplitMetrics] = useState<{
@@ -755,7 +755,12 @@ Extract all items into the \`data\` array matching this exact vocabulary schema:
           {
             parts: [
               {
-                text: `Hãy trích xuất tất cả các từ vựng/thuật ngữ quan trọng nhất từ đoạn văn bản/tài liệu tiếng Anh hoặc tiếng Việt sau đây thành Flashcards chất lượng cao. Với mỗi Flashcard, cung cấp từ vựng/câu hỏi thâm sâu (front), định nghĩa/câu trả lời súc tích tuyệt đối (back), từ loại (wordForm), phát âm IPA (ipa), ví dụ thực tế chuẩn bối cảnh (example), và nguồn gốc bối cảnh xuất xứ (origin).\n\nVăn bản đầu vào bản gốc:\n${textChunk}`,
+                text: `[STRICT DETERMINISTIC MODE] Bạn là một cỗ máy biên dịch dữ liệu (Data Compiler). NHIỆM VỤ TỐI THƯỢNG: Trích xuất TOÀN BỘ, KHÔNG BỎ SÓT BẤT KỲ MỘT TỪ NÀO từ đoạn văn bản/tài liệu sau đây thành Flashcards.
+CẢNH BÁO: BẠN PHẢI QUÉT VÀ TRÍCH XUẤT 100% SỐ LƯỢNG TỪ VỰNG HOẶC DÒNG THÔNG TIN. NẾU BỎ SÓT DÙ CHỈ 1 TỪ, HỆ THỐNG SẼ COI LÀ LỖI NGHIÊM TRỌNG.
+Với mỗi thẻ, cung cấp: từ vựng/câu hỏi (front), định nghĩa/câu trả lời (back), từ loại (wordForm), phát âm IPA (ipa), ví dụ (example), và nguồn gốc (origin).
+
+Văn bản đầu vào bản gốc:
+${textChunk}`,
               },
             ],
           },
@@ -763,13 +768,14 @@ Extract all items into the \`data\` array matching this exact vocabulary schema:
         systemInstruction: {
           parts: [
             {
-              text: `Ngươi là AI bóc tách Flashcard siêu tốc của Henosis. Nhiệm vụ duy nhất: Đọc văn bản tiếng Việt/Anh và bóc tách danh sách từ vựng/thuật ngữ quan trọng thành các Flashcard. Bắt buộc xuất ra định dạng JSON thỏa mãn cấu trúc: { "cards": [ { "front": "tử vựng/câu hỏi", "back": "nghĩa/câu trả lời", "explanation": "giải thích ngắn gọn", "wordForm": "từ loại", "ipa": "phát âm IPA", "example": "ví dụ thực tế", "origin": "từ gốc trong bài" } ] }. Tuyệt đối không được thêm thụt lề (indentation), không thêm xuống dòng thừa, không bọc trong thẻ \`\`\`json. Không sinh trường 'category' hay bất kỳ thông tin thừa nào khác. Chỉ sinh duy nhất chuỗi JSON nén siêu gọn để tối ưu tối đa băng thông.`,
+              text: `Ngươi là AI bóc tách Flashcard siêu tốc của Henosis. Nhiệm vụ duy nhất: Trích xuất ĐẦY ĐỦ 100% dữ liệu, không tóm tắt, không bỏ sót bất kỳ dòng hay từ vựng nào. Bắt buộc xuất ra định dạng JSON thỏa mãn cấu trúc: { "cards": [ { "front": "...", "back": "...", "explanation": "...", "wordForm": "...", "ipa": "...", "example": "...", "origin": "..." } ] }. Chỉ sinh chuỗi JSON nén siêu gọn.`,
             },
           ],
         },
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.1,
+          maxOutputTokens: 8192,
         },
       }),
     });
@@ -1191,11 +1197,8 @@ Extract all items into the \`data\` array matching this exact vocabulary schema:
             const wordCount = task.content
               .split(/\s+/)
               .filter((w: string) => w.length > 0).length;
-            const calculatedMin = Math.max(6, Math.floor(wordCount / 12));
-            const calculatedMax = Math.min(
-              125,
-              Math.max(20, Math.ceil(wordCount / 4.5)),
-            );
+            const calculatedMin = Math.max(6, Math.floor(wordCount / 15));
+            const calculatedMax = Math.max(20, wordCount); // Allow dense extraction without artificial cap
 
             try {
               pushLog(
@@ -1894,7 +1897,7 @@ Extract all items into the \`data\` array matching this exact vocabulary schema:
           maxChars: chunkMaxChars,
           overlapWords: chunkOverlapWords,
         });
-        segmentChunks = processed.map((x) => x.words.join(" "));
+        segmentChunks = processed.map((x) => x.text);
       } else if (
         totalWords > wordSafetyCeiling ||
         cleanText.length > charSafetyCeiling
@@ -1908,7 +1911,7 @@ Extract all items into the \`data\` array matching this exact vocabulary schema:
           maxChars: charSafetyCeiling,
           overlapWords: 15,
         });
-        segmentChunks = processed.map((x) => x.words.join(" "));
+        segmentChunks = processed.map((x) => x.text);
       } else {
         pushLog(
           "📝 Văn bản nằm trong ngưỡng an toàn, tiến hành xử lý nguyên khối.",
